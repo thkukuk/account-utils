@@ -153,7 +153,7 @@ verify_password(const char *hash, const char *p, bool nullok)
 
   if (isempty(p) && !nullok)
     return VERIFY_FAILED;
-  else if (strlen(hash) == 0)
+  else if (isempty(hash))
     {
       if (isempty(p) && nullok)
 	return VERIFY_OK;
