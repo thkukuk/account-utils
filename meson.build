@@ -33,7 +33,7 @@ conf.set_quoted('_PATH_VENDORDIR', get_option('vendordir'))
 
 cc = meson.get_compiler('c')
 pkg = import('pkgconfig')
-inc = include_directories(['include','libcommon'])
+inc = include_directories(['include','libcommon','libclient'])
 
 add_project_arguments(['-D_GNU_SOURCE=1',
 		       '-DXTSTRINGDEFINES',
@@ -112,23 +112,32 @@ pkg.generate(
   version : meson.project_version(),
 )
 
-libcommon_c = files('libcommon/chauthtok.c',
-                    'libcommon/check_caller_perms.c',
+libcommon_c = files('libcommon/check_caller_perms.c',
                     'libcommon/chfn_checks.c',
                     'libcommon/create_hash.c',
-                    'libcommon/drop_privs.c',
                     'libcommon/files.c',
-                    'libcommon/get_logindefs.c',
                     'libcommon/mkdir_p.c',
                     'libcommon/no_new_privs.c',
                     'libcommon/read_config.c',
                     'libcommon/string-util-fundamental.c',
-                    'libcommon/varlink-client-common.c',
                     'libcommon/verify.c')
 
 libcommon = static_library(
   'common',
   libcommon_c,
+  include_directories : inc,
+  install : false
+)
+
+libclient_c = files('libclient/chauthtok.c',
+                    'libclient/drop_privs.c',
+                    'libclient/get_logindefs.c',
+                    'libclient/get_value.c',
+                    'libclient/varlink-client-common.c')
+
+libclient = static_library(
+  'client',
+  libclient_c,
   include_directories : inc,
   install : false
 )
@@ -168,39 +177,39 @@ executable('newidmapd',
 executable('newuidmap', 'src/newxidmap.c',
            c_args : '-DXID="uid"',
            include_directories : inc,
-           link_with : [libcommon],
+           link_with : [libclient, libcommon],
            dependencies : [libsystemd],
            install : true)
 executable('newgidmap', 'src/newxidmap.c',
            c_args : '-DXID="gid"',
            include_directories : inc,
-           link_with : [libcommon],
+           link_with : [libclient, libcommon],
            dependencies : [libsystemd],
            install : true)
 
-executable('chage', 'src/chage.c', 'src/get_value.c',
+executable('chage', 'src/chage.c',
            include_directories : inc,
-           link_with : [libcommon, libpwaccess],
+           link_with : [libclient, libpwaccess],
            dependencies : [libsystemd, libpam, libpam_misc, libeconf],
            install : true)
-executable('chfn', 'src/chfn.c', 'src/get_value.c',
+executable('chfn', 'src/chfn.c',
            include_directories : inc,
-           link_with : [libcommon, libpwaccess],
+           link_with : [libclient, libcommon, libpwaccess],
            dependencies : [libsystemd, libpam, libpam_misc, libeconf],
            install : true)
-executable('chsh', 'src/chsh.c', 'src/get_value.c',
+executable('chsh', 'src/chsh.c',
            include_directories : inc,
-           link_with : [libcommon, libpwaccess],
+           link_with : [libclient, libpwaccess],
            dependencies : [libsystemd, libpam, libpam_misc, libeconf],
            install : true)
 executable('passwd', 'src/passwd.c',
            include_directories : inc,
-           link_with : [libcommon, libpwaccess],
+           link_with : [libclient, libcommon, libpwaccess],
            dependencies : [libsystemd, libpam, libpam_misc, libeconf],
            install : true)
 executable('expiry', 'src/expiry.c',
            include_directories : inc,
-           link_with : [libpwaccess, libcommon],
+           link_with : [libclient, libpwaccess],
            dependencies : [libsystemd, libpam, libpam_misc],
            install : true)
 
@@ -217,7 +226,7 @@ pam_unix_ng = shared_library(
   include_directories : inc,
   link_args : ['-shared', pam_unix_ng_map_version],
   link_depends : pam_unix_ng_map,
-  link_with : [libpwaccess, libcommon],
+  link_with : [libclient, libcommon, libpwaccess],
   dependencies : [libcrypt, libeconf, libpam, libselinux],
   install : true,
   install_dir : pamlibdir

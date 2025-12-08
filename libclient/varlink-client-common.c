@@ -88,6 +88,15 @@ reply_callback(sd_varlink *link _unused_,
   };
   int r;
 
+  /* make sure there is no old response left in error case */
+  /* XXX unify */
+  if (resp)
+    {
+      if (resp->resp)
+	free(resp->resp);
+      resp = mfree(resp);
+    }
+
   if (error)
     {
       r = sd_json_dispatch(parameters, dispatch_result_table, SD_JSON_ALLOW_EXTENSIONS, &p);
@@ -126,13 +135,15 @@ reply_callback(sd_varlink *link _unused_,
 	    fprintf(stderr, "Failed to parse JSON answer (result): %s\n", strerror(-r));
 	    return r;
 	  }
+
+	/* This should never happen */
 	if (!p.success)
 	  {
 	    if (p.error)
 	      fprintf(stderr, "%s\n", p.error);
 	    else
 	      fprintf(stderr, "Error while changing account data.\n");
-	    return 1;
+	    return -EBADMSG;
 	  }
     }
   else /* got pam_message */
