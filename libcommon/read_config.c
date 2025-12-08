@@ -8,6 +8,15 @@
 #include "basics.h"
 #include "read_config.h"
 
+struct config_t *
+struct_config_free(struct config_t *cfg)
+{
+  cfg->allow_get_user_record = mfree(cfg->allow_get_user_record);
+  cfg->allow_verify_password = mfree(cfg->allow_verify_password);
+  cfg->allow_expired_check = mfree(cfg->allow_expired_check);
+  return NULL;
+}
+
 /* trim leading and trailing whitespaces */
 static char *
 trim_whitespace(char *str)

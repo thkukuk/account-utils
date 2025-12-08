@@ -10,4 +10,5 @@ struct config_t {
   uid_t *allow_expired_check;
 };
 
+extern struct config_t *struct_config_free(struct config_t *cfg);
 extern econf_err read_config(struct config_t *cfg);
