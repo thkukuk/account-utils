@@ -901,7 +901,7 @@ run_pam_chauthtok(void *arg)
       return broadcast_and_return(r);
     }
 
-  log_msg(LOG_DEBUG, "pam_chauthok(pamh, %i)", p.flags);
+  log_msg(LOG_DEBUG, "pam_chauthtok(pamh, %i)", p.flags);
   r = pam_chauthtok(pamh, p.flags);
   if (r != PAM_SUCCESS)
     {
