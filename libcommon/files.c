@@ -6,7 +6,9 @@
 #include <errno.h>
 #include <pwd.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <shadow.h>
 #include <sys/stat.h>
 
@@ -234,6 +236,8 @@ update_account_locked(const char *etcdir, const char *name,
   newf = fdopen(newfd, "w+");
   if (newf == NULL)
     return -errno;
+  /* make sure file descriptior does not get closed twice */
+  TAKE_FD(newfd);
 
   int gotit = update_account_entry(oldf, newf, ctx);
   if (gotit < 0)
