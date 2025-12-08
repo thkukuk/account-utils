@@ -28,9 +28,6 @@
 #define USEC_PER_SEC  ((uint64_t) 1000000ULL)
 #define DEFAULT_EXIT_USEC (30*USEC_PER_SEC)
 
-static int socket_activation = false;
-static struct config_t cfg = { NULL, NULL, NULL };
-
 static int
 error_user_not_found(sd_varlink *link, int64_t uid, const char *name, int errcode)
 {
@@ -134,8 +131,9 @@ vl_method_get_account_name(sd_varlink *link, sd_json_variant *parameters,
 static int
 vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 			  sd_varlink_method_flags_t _unused_(flags),
-			  void _unused_(*userdata))
+			  void *userdata)
 {
+  struct config_t *cfg = userdata;
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *passwd = NULL;
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *shadow = NULL;
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *result = NULL;
@@ -209,7 +207,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 
   /* Don't return password if query does not come from root
      and result is not the one of the calling user */
-  if (!check_caller_perms(peer_uid, pw->pw_uid, cfg.allow_get_user_record))
+  if (!check_caller_perms(peer_uid, pw->pw_uid, cfg->allow_get_user_record))
     {
       log_msg(LOG_DEBUG, "Peer UID %u is not allowed to access data of '%s'",
 	  peer_uid, pw->pw_name);
@@ -306,8 +304,9 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 static int
 vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
 			  sd_varlink_method_flags_t _unused_(flags),
-			  void _unused_(*userdata))
+			  void *userdata)
 {
+  struct config_t *cfg = userdata;
   _cleanup_(parameters_free) struct parameters p = {
     .name = NULL,
     .password = NULL,
@@ -352,7 +351,7 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
   if (pw == NULL)
     return error_user_not_found(link, -1, p.name, errno);
 
-  if (!check_caller_perms(peer_uid, pw->pw_uid, cfg.allow_verify_password))
+  if (!check_caller_perms(peer_uid, pw->pw_uid, cfg->allow_verify_password))
     {
       _cleanup_free_ char *error = NULL;
 
@@ -432,8 +431,9 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
 static int
 vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
 			sd_varlink_method_flags_t _unused_(flags),
-			void _unused_(*userdata))
+			void *userdata)
 {
+  struct config_t *cfg = userdata;
   _cleanup_(parameters_free) struct parameters p = {
     .name = NULL,
     .password = NULL,
@@ -479,7 +479,7 @@ vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
 
   /* Don't verify password if query does not come from root
      and result is not the one of the calling user */
-  if (!check_caller_perms(peer_uid, pw->pw_uid, cfg.allow_expired_check))
+  if (!check_caller_perms(peer_uid, pw->pw_uid, cfg->allow_expired_check))
     {
       _cleanup_free_ char *error = NULL;
 
@@ -587,7 +587,7 @@ varlink_event_loop_with_idle(sd_event *e, sd_varlink_server *s)
 }
 
 static int
-run_varlink(void)
+run_varlink(bool socket_activation, struct config_t *cfg)
 {
   int r;
   _cleanup_(sd_event_unrefp) sd_event *event = NULL;
@@ -637,6 +637,8 @@ run_varlink(void)
       return r;
     }
 
+  sd_varlink_server_set_userdata(varlink_server, cfg);
+
   r = sd_varlink_server_bind_method_many(varlink_server,
 					 "org.openSUSE.pwaccess.GetAccountName", vl_method_get_account_name,
 					 "org.openSUSE.pwaccess.GetUserRecord",  vl_method_get_user_record,
@@ -652,8 +654,6 @@ run_varlink(void)
 	      strerror(-r));
       return r;
     }
-
-  sd_varlink_server_set_userdata(varlink_server, event);
 
   r = sd_varlink_server_attach_event(varlink_server, event, SD_EVENT_PRIORITY_NORMAL);
   if (r < 0)
@@ -705,6 +705,8 @@ print_help(void)
 int
 main(int argc, char **argv)
 {
+  int socket_activation = false;
+  _cleanup_(struct_config_free) struct config_t cfg = { NULL, NULL, NULL };
   econf_err error = read_config(&cfg);
 
   if (error != ECONF_SUCCESS)
@@ -765,7 +767,7 @@ main(int argc, char **argv)
 
   log_msg (LOG_INFO, "Starting pwaccessd (%s) %s...", PACKAGE, VERSION);
 
-  int r = run_varlink ();
+  int r = run_varlink (socket_activation, &cfg);
   if (r < 0)
     {
       log_msg (LOG_ERR, "ERROR: varlink loop failed: %s", strerror (-r));
