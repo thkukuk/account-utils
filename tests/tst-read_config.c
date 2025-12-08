@@ -26,7 +26,7 @@ print_allow(const char *group, uid_t *list)
 int
 main(int argc _unused_, char **argv _unused_)
 {
-  struct config_t cfg = {NULL, NULL, NULL};
+  _cleanup_(struct_config_free) struct config_t cfg = {NULL, NULL, NULL};
 
   econf_err error = read_config(&cfg);
 
