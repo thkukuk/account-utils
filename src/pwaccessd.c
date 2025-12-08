@@ -22,6 +22,7 @@
 #include "check_caller_perms.h"
 #include "varlink-service-common.h"
 #include "read_config.h"
+#include "context.h"
 
 #include "varlink-org.openSUSE.pwaccess.h"
 
@@ -133,7 +134,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 			  sd_varlink_method_flags_t _unused_(flags),
 			  void *userdata)
 {
-  struct config_t *cfg = userdata;
+  struct context_t *ctx = userdata;
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *passwd = NULL;
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *shadow = NULL;
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *result = NULL;
@@ -207,7 +208,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 
   /* Don't return password if query does not come from root
      and result is not the one of the calling user */
-  if (!check_caller_perms(peer_uid, pw->pw_uid, cfg->allow_get_user_record))
+  if (!check_caller_perms(peer_uid, pw->pw_uid, ctx->cfg.allow_get_user_record))
     {
       log_msg(LOG_DEBUG, "Peer UID %u is not allowed to access data of '%s'",
 	  peer_uid, pw->pw_name);
@@ -306,7 +307,7 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
 			  sd_varlink_method_flags_t _unused_(flags),
 			  void *userdata)
 {
-  struct config_t *cfg = userdata;
+  struct context_t *ctx = userdata;
   _cleanup_(parameters_free) struct parameters p = {
     .name = NULL,
     .password = NULL,
@@ -351,7 +352,7 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
   if (pw == NULL)
     return error_user_not_found(link, -1, p.name, errno);
 
-  if (!check_caller_perms(peer_uid, pw->pw_uid, cfg->allow_verify_password))
+  if (!check_caller_perms(peer_uid, pw->pw_uid, ctx->cfg.allow_verify_password))
     {
       _cleanup_free_ char *error = NULL;
 
@@ -433,7 +434,7 @@ vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
 			sd_varlink_method_flags_t _unused_(flags),
 			void *userdata)
 {
-  struct config_t *cfg = userdata;
+  struct context_t *ctx = userdata;
   _cleanup_(parameters_free) struct parameters p = {
     .name = NULL,
     .password = NULL,
@@ -479,7 +480,7 @@ vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
 
   /* Don't verify password if query does not come from root
      and result is not the one of the calling user */
-  if (!check_caller_perms(peer_uid, pw->pw_uid, cfg->allow_expired_check))
+  if (!check_caller_perms(peer_uid, pw->pw_uid, ctx->cfg.allow_expired_check))
     {
       _cleanup_free_ char *error = NULL;
 
@@ -587,7 +588,7 @@ varlink_event_loop_with_idle(sd_event *e, sd_varlink_server *s)
 }
 
 static int
-run_varlink(bool socket_activation, struct config_t *cfg)
+run_varlink(bool socket_activation, struct context_t *ctx)
 {
   int r;
   _cleanup_(sd_event_unrefp) sd_event *event = NULL;
@@ -608,6 +609,7 @@ run_varlink(bool socket_activation, struct config_t *cfg)
 	      strerror(-r));
       return r;
     }
+  ctx->loop = event;
 
   r = sd_varlink_server_new(&varlink_server, SD_VARLINK_SERVER_ACCOUNT_UID|SD_VARLINK_SERVER_INHERIT_USERDATA|SD_VARLINK_SERVER_INPUT_SENSITIVE);
   if (r < 0)
@@ -637,7 +639,7 @@ run_varlink(bool socket_activation, struct config_t *cfg)
       return r;
     }
 
-  sd_varlink_server_set_userdata(varlink_server, cfg);
+  sd_varlink_server_set_userdata(varlink_server, ctx);
 
   r = sd_varlink_server_bind_method_many(varlink_server,
 					 "org.openSUSE.pwaccess.GetAccountName", vl_method_get_account_name,
@@ -706,8 +708,8 @@ int
 main(int argc, char **argv)
 {
   int socket_activation = false;
-  _cleanup_(struct_config_free) struct config_t cfg = { NULL, NULL, NULL };
-  econf_err error = read_config(&cfg);
+  struct context_t ctx = { {NULL, NULL, NULL}, NULL };
+  econf_err error = read_config(&ctx.cfg);
 
   if (error != ECONF_SUCCESS)
     log_msg(LOG_NOTICE, "Error reading config file: %s",
@@ -767,7 +769,7 @@ main(int argc, char **argv)
 
   log_msg (LOG_INFO, "Starting pwaccessd (%s) %s...", PACKAGE, VERSION);
 
-  int r = run_varlink (socket_activation, &cfg);
+  int r = run_varlink (socket_activation, &ctx);
   if (r < 0)
     {
       log_msg (LOG_ERR, "ERROR: varlink loop failed: %s", strerror (-r));

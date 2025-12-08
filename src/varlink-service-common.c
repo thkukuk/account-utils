@@ -8,6 +8,7 @@
 
 #include "basics.h"
 #include "varlink-service-common.h"
+#include "context.h"
 
 static int log_level = LOG_WARNING;
 
@@ -161,7 +162,7 @@ vl_method_quit(sd_varlink *link, sd_json_variant *parameters,
     {}
   };
   uid_t peer_uid;
-  sd_event *loop = userdata;
+  struct context_t *ctx = userdata;
   int exit_code = 0;
   int r;
 
@@ -191,7 +192,7 @@ vl_method_quit(sd_varlink *link, sd_json_variant *parameters,
   if (exit_code > 0)
     exit_code = -exit_code;
 
-  r = sd_event_exit(loop, exit_code);
+  r = sd_event_exit(ctx->loop, exit_code);
   if (r != 0)
     {
       log_msg(LOG_ERR, "Quit request: disabling event loop failed: %s",
