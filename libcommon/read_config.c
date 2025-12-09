@@ -119,6 +119,8 @@ lookup_group(econf_file *key_file, const char *group, uid_t **list)
 
   /* allocate one more slot for the final "NULL" */
   uids = calloc(count + 1, sizeof (uid_t));
+  if (uids == NULL)
+    return ECONF_NOMEM;
 
   /* Split and store */
   count = 0;
