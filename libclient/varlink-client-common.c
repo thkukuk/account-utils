@@ -2,6 +2,7 @@
 
 #include "config.h"
 
+#include <assert.h>
 #include <systemd/sd-varlink.h>
 #include <security/pam_misc.h>
 
@@ -59,15 +60,14 @@ pam_message_free(struct pam_message *var)
   return NULL;
 }
 
-struct pam_response *resp = NULL;
-
 int
 reply_callback(sd_varlink *link _unused_,
 	       sd_json_variant *parameters,
 	       const char *error,
 	       sd_varlink_reply_flags_t flags _unused_,
-	       void *userdata _unused_)
+	       void *userdata)
 {
+  struct pam_response **resp = userdata;
   _cleanup_(pam_message_free) struct pam_message pmsg = {
     .msg_style = -1,
     .msg = NULL
@@ -88,14 +88,7 @@ reply_callback(sd_varlink *link _unused_,
   };
   int r;
 
-  /* make sure there is no old response left in error case */
-  /* XXX unify */
-  if (resp)
-    {
-      if (resp->resp)
-	free(resp->resp);
-      resp = mfree(resp);
-    }
+  assert(*resp == NULL);
 
   if (error)
     {
@@ -149,20 +142,20 @@ reply_callback(sd_varlink *link _unused_,
   else /* got pam_message */
     {
       const struct pam_message *arg = &pmsg;
-      r = misc_conv(1, &arg, &resp, NULL);
+      r = misc_conv(1, &arg, resp, NULL);
       if (r != PAM_SUCCESS)
 	{
 	  fprintf(stderr, "misc_conv() failed: %s\n", pam_strerror(NULL, r));
 	  return -EBADMSG;
 	}
 
-      if (resp && pmsg.msg_style != PAM_PROMPT_ECHO_OFF && pmsg.msg_style != PAM_PROMPT_ECHO_ON)
+      if (*resp && pmsg.msg_style != PAM_PROMPT_ECHO_OFF && pmsg.msg_style != PAM_PROMPT_ECHO_ON)
 	{
-	  if (resp->resp)
-	    free(resp->resp);
-	  resp = mfree(resp);
+	  if ((*resp)->resp)
+	    free((*resp)->resp);
+	  *resp = mfree(*resp);
 	}
     }
 
-  return r;
+  return 0;
 }

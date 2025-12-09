@@ -17,6 +17,7 @@ chauthtok(const char *user, int pam_flags)
   _cleanup_(sd_varlink_unrefp) sd_varlink *link = NULL;
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *params = NULL;
   _cleanup_free_ char *error = NULL;
+  struct pam_response *resp = NULL;
   int r;
 
   r = connect_to_pwupdd(&link, _VARLINK_PWUPD_SOCKET, &error);
@@ -28,6 +29,7 @@ chauthtok(const char *user, int pam_flags)
 	fprintf(stderr, "Cannot connect to pwupd! (%s)\n", strerror(-r));
       return -r;
     }
+  sd_varlink_set_userdata(link, &resp);
 
   r = sd_json_variant_merge_objectbo(&params,
 				     SD_JSON_BUILD_PAIR_STRING("userName", user));

@@ -111,6 +111,7 @@ main(int argc, char **argv)
   const char *old_work_phone = NULL;
   const char *user = NULL;
   _cleanup_free_ char *error = NULL;
+  struct pam_response *resp = NULL;
   int r;
 
   setlocale(LC_ALL, "");
@@ -277,6 +278,7 @@ main(int argc, char **argv)
 
       return -r;
     }
+  sd_varlink_set_userdata(link, &resp);
 
   r = sd_json_variant_merge_objectbo(&params,
 				     SD_JSON_BUILD_PAIR_STRING("userName", user));

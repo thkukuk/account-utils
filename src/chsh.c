@@ -83,6 +83,7 @@ print_error(void)
 int
 main(int argc, char **argv)
 {
+  struct pam_response *resp = NULL;
   char *new_shell = NULL;
   int l_flag = 0;
   int r;
@@ -201,6 +202,7 @@ main(int argc, char **argv)
 
 	  return -r;
 	}
+      sd_varlink_set_userdata(link, &resp);
 
       r = sd_json_buildo(&params,
 			 SD_JSON_BUILD_PAIR("userName", SD_JSON_BUILD_STRING(user)),

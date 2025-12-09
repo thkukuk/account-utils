@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 #include <errno.h>
-#include <assert.h>
 #include <limits.h>
 #include <security/pam_modutil.h>
 

@@ -4,8 +4,6 @@
 
 #include <security/pam_misc.h>
 
-extern struct pam_response *resp;
-
 struct result {
   bool success;
   char *error;
