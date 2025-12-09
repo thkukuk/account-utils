@@ -609,7 +609,7 @@ run_varlink(bool socket_activation, struct context_t *ctx)
 	      strerror(-r));
       return r;
     }
-  ctx->loop = event;
+  ctx->loop = TAKE_PTR(event);
 
   r = sd_varlink_server_new(&varlink_server, SD_VARLINK_SERVER_ACCOUNT_UID|SD_VARLINK_SERVER_INHERIT_USERDATA|SD_VARLINK_SERVER_INPUT_SENSITIVE);
   if (r < 0)
@@ -657,7 +657,7 @@ run_varlink(bool socket_activation, struct context_t *ctx)
       return r;
     }
 
-  r = sd_varlink_server_attach_event(varlink_server, event, SD_EVENT_PRIORITY_NORMAL);
+  r = sd_varlink_server_attach_event(varlink_server, ctx->loop, SD_EVENT_PRIORITY_NORMAL);
   if (r < 0)
     {
       log_msg(LOG_ERR, "Failed to attach to event: %s", strerror(-r));
@@ -684,9 +684,9 @@ run_varlink(bool socket_activation, struct context_t *ctx)
 
   announce_ready();
   if (socket_activation)
-    r = varlink_event_loop_with_idle(event, varlink_server);
+    r = varlink_event_loop_with_idle(ctx->loop, varlink_server);
   else
-    r = sd_event_loop(event);
+    r = sd_event_loop(ctx->loop);
   announce_stopping();
 
   return r;
@@ -704,11 +704,19 @@ print_help(void)
   printf("      --version  Print program version\n");
 }
 
+static void
+struct_context_free(struct context_t *var)
+{
+  struct_config_free(&(var->cfg));
+  sd_event_unrefp(&(var->loop));
+}
+
+
 int
 main(int argc, char **argv)
 {
   int socket_activation = false;
-  struct context_t ctx = { {NULL, NULL, NULL}, NULL };
+  _cleanup_(struct_context_free) struct context_t ctx = { {NULL, NULL, NULL}, NULL };
   econf_err error = read_config(&ctx.cfg);
 
   if (error != ECONF_SUCCESS)
