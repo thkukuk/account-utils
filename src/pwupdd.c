@@ -581,11 +581,15 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
   while(!broadcast_called)
     pthread_cond_wait(&cond, &mut);
   broadcast_called = false;
-  pthread_mutex_unlock(&mut);
 
   /* we need input from the user, quit method and send prompt back */
   if (send_v != NULL)
-    return sd_varlink_reply(link, send_v);
+    {
+      r = sd_varlink_reply(link, send_v);
+      pthread_mutex_unlock(&mut);
+      return r;
+    }
+  pthread_mutex_unlock(&mut);
 
   intptr_t *thread_res = NULL;
   r = pthread_join(pam_thread, (void **)&thread_res);
@@ -831,11 +835,15 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
   while(!broadcast_called)
     pthread_cond_wait(&cond, &mut);
   broadcast_called = false;
-  pthread_mutex_unlock(&mut);
 
   /* we need input from the user, quit method and send prompt back */
   if (send_v != NULL)
-    return sd_varlink_reply(link, send_v);
+    {
+      r = sd_varlink_reply(link, send_v);
+      pthread_mutex_unlock(&mut);
+      return r;
+    }
+  pthread_mutex_unlock(&mut);
 
   intptr_t *thread_res = NULL;
   r = pthread_join(pam_thread, (void **)&thread_res);
@@ -1025,11 +1033,15 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
   while(!broadcast_called)
     pthread_cond_wait(&cond, &mut);
   broadcast_called = false;
-  pthread_mutex_unlock(&mut);
 
   /* we need input from the user, quit method and send prompt back */
   if (send_v != NULL)
-    return sd_varlink_reply(link, send_v);
+    {
+      r = sd_varlink_reply(link, send_v);
+      pthread_mutex_unlock(&mut);
+      return r;
+    }
+  pthread_mutex_unlock(&mut);
 
   intptr_t *thread_res = NULL;
   r = pthread_join(pam_thread, (void **)&thread_res);
@@ -1107,11 +1119,15 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
   while(!broadcast_called)
     pthread_cond_wait(&cond, &mut);
   broadcast_called = false;
-  pthread_mutex_unlock(&mut);
 
   /* we need input from the user, quit method and send prompt back */
   if (send_v != NULL)
-    return sd_varlink_reply(link, send_v);
+    {
+      r = sd_varlink_reply(link, send_v);
+      pthread_mutex_unlock(&mut);
+      return r;
+    }
+  pthread_mutex_unlock(&mut);
 
   intptr_t *thread_res = NULL;
   r = pthread_join(pam_thread, (void **)&thread_res);
