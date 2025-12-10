@@ -7,10 +7,17 @@
 #include "basics.h"
 #include "get_logindefs.h"
 
-/* XXX todo:
- * unify econf_readConfig call
- * don't write error to stderr, return as error code
- */
+static econf_err
+load_logindefs_config(econf_file **key_file)
+{
+  return econf_readConfig(key_file,
+                          NULL /* project */,
+                          _PATH_VENDORDIR /* usr_conf_dir */,
+                          "login" /* config_name */,
+                          "defs" /* config_suffix */,
+                          "= \t" /* delim */,
+                          "#" /* comment */);
+}
 
 long
 get_logindefs_num(const char *key, long def)
@@ -19,13 +26,7 @@ get_logindefs_num(const char *key, long def)
   int32_t val;
   econf_err error;
 
-  error = econf_readConfig(&key_file,
-                           NULL /* project */,
-                           _PATH_VENDORDIR /* usr_conf_dir */,
-                           "login" /* config_name */,
-                           "defs" /* config_suffix */,
-                           "= \t" /* delim */,
-                           "#" /* comment */);
+  error = load_logindefs_config(&key_file);
   if (error != ECONF_SUCCESS)
     {
       fprintf(stderr, "Cannot parse login.defs: %s\n", econf_errString(error));
@@ -51,13 +52,7 @@ get_logindefs_string(const char *key, const char *def)
   char *val;
   econf_err error;
 
-  error = econf_readConfig(&key_file,
-                           NULL /* project */,
-                           _PATH_VENDORDIR /* usr_conf_dir */,
-                           "login" /* config_name */,
-                           "defs" /* config_suffix */,
-                           "= \t" /* delim */,
-                           "#" /* comment */);
+  error = load_logindefs_config(&key_file);
   if (error != ECONF_SUCCESS)
     {
       fprintf(stderr, "Cannot parse login.defs: %s\n", econf_errString(error));
