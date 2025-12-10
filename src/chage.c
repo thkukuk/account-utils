@@ -69,6 +69,36 @@ date2str(time_t date)
   return strdup(buf);
 }
 
+static void
+format_date_buf(char *buf, size_t buf_size, long date_val)
+{
+  if (date_val == -1)
+    strcpy(buf, "-1");
+  else
+    {
+      _cleanup_free_ char *p = date2str(date_val * SCALE);
+      if (p != NULL)
+	strlcpy(buf, p, buf_size);
+      else
+	strlcpy(buf, "-1", buf_size);
+    }
+}
+
+static int
+prompt_and_check(char *buf, const char *prompt, char **result_ptr)
+{
+  int r = get_value(buf, prompt, result_ptr);
+
+  if (r < 0)
+    return -r;
+
+  if (*result_ptr == NULL)
+    {
+      fprintf(stderr, "chage aborted.\n");
+      return ENODATA;
+    }
+  return 0;
+}
 
 /* Print the time in a human readable format.  */
 static void
@@ -170,7 +200,6 @@ update_account(const struct passwd *pw, const struct spwd *sp)
   const char *error_id = NULL;
   int r;
 
-  /* XXX unify opening socket */
   r = connect_to_pwupdd(&link, _VARLINK_PWUPD_SOCKET, &error);
   if (r < 0)
     {
@@ -452,83 +481,35 @@ main(int argc, char **argv)
     {
       char buf[80];
 
-      /* XXX consolidate in a single function */
       snprintf(buf, sizeof(buf), "%ld", sp->sp_min);
-      r = get_value(buf, "Minimum password age", &mindays);
-      if (r < 0)
-	return -r;
-      if (mindays == NULL)
-	{
-	  fprintf(stderr, "chage aborted.\n");
-	  return ENODATA;
-	}
+      r = prompt_and_check(buf, "Minimum password age", &mindays);
+      if (r != 0)
+	return r;
+
       snprintf(buf, sizeof(buf), "%ld", sp->sp_max);
-      r = get_value(buf, "Maximum password age", &maxdays);
-      if (r < 0)
-	return -r;
-      if (maxdays == NULL)
-	{
-	  fprintf(stderr, "chage aborted.\n");
-	  return ENODATA;
-	}
-      if (sp->sp_lstchg == -1)
-	strcpy(buf, "-1");
-      else
-	{
-	  _cleanup_free_ char *p = NULL;
+      r = prompt_and_check(buf, "Maximum password age", &maxdays);
+      if (r != 0)
+	return r;
 
-	  p = date2str(sp->sp_lstchg*SCALE);
-	  if (p != NULL)
-	    strlcpy(buf, p, sizeof(buf));
-	  else
-	    strcpy(buf, "-1");
-	}
-      r = get_value(buf, "Last password change (YYYY-MM-DD)", &lastday);
-      if (r < 0)
-	return -r;
-      if (lastday == NULL)
-	{
-	  fprintf(stderr, "chage aborted.\n");
-	  return ENODATA;
-	}
+      format_date_buf(buf, sizeof(buf), sp->sp_lstchg);
+      r = prompt_and_check(buf, "Last password change (YYYY-MM-DD)", &lastday);
+      if (r != 0)
+	return r;
+
       snprintf(buf, sizeof(buf), "%ld", sp->sp_warn);
-      r = get_value(buf, "Password warning period", &warndays);
-      if (r < 0)
-	return -r;
-      if (warndays == NULL)
-	{
-	  fprintf(stderr, "chage aborted.\n");
-	  return ENODATA;
-	}
-      snprintf(buf, sizeof(buf), "%ld", sp->sp_inact);
-      r = get_value(buf, "Password inactivity period", &inactive);
-      if (r < 0)
-	return -r;
-      if (inactive == NULL)
-	{
-	  fprintf(stderr, "chage aborted.\n");
-	  return ENODATA;
-	}
-      if (sp->sp_expire == -1)
-	strcpy(buf, "-1");
-      else
-	{
-	  _cleanup_free_ char *p = NULL;
+      r = prompt_and_check(buf, "Password warning period", &warndays);
+      if (r != 0)
+	return r;
 
-	  p = date2str(sp->sp_expire*SCALE);
-	  if (p != NULL)
-	    strlcpy(buf, p, sizeof(buf));
-	  else
-	    strcpy(buf, "-1");
-	}
-      r = get_value(buf, "Account expires (YYYY-MM-DD)", &expiredate);
-      if (r < 0)
-	return -r;
-      if (expiredate == NULL)
-	{
-	  fprintf(stderr, "chage aborted.\n");
-	  return ENODATA;
-	}
+      snprintf(buf, sizeof(buf), "%ld", sp->sp_inact);
+      r = prompt_and_check(buf, "Password inactivity period", &inactive);
+      if (r != 0)
+	return r;
+
+      format_date_buf(buf, sizeof(buf), sp->sp_expire);
+      r = prompt_and_check(buf, "Account expires (YYYY-MM-DD)", &expiredate);
+      if (r != 0)
+	return r;
     }
 
   /* values are provided as option or asked for */
