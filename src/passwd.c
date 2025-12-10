@@ -63,13 +63,12 @@ print_help(void)
 static void
 print_error(void)
 {
-  fprintf (stderr, "Try `passwd --help' for more information.\n");
+  fprintf(stderr, "Try `passwd --help' for more information.\n");
 }
 
 #define DAY (24L*3600L)
 #define SCALE DAY
 
-/* XXX don't use static char buf */
 static inline char *
 date2str(time_t date)
 {
@@ -81,7 +80,7 @@ date2str(time_t date)
  else if (!gmtime_r(&date, &tm))
    strcpy(buf, "future");
  else
-   strftime (buf, sizeof (buf), "%Y-%m-%d", &tm);
+   strftime(buf, sizeof(buf), "%Y-%m-%d", &tm);
 
   return buf;
 }
@@ -104,7 +103,7 @@ print_account_status(const struct passwd *pw, const struct spwd *sp)
   if (sp)
     printf("%s %s %s %ld %ld %ld %ld\n",
 	   pw->pw_name,
-	   pw_status (sp->sp_pwdp),
+	   pw_status(sp->sp_pwdp),
 	   date2str(sp->sp_lstchg * SCALE),
 	   sp->sp_min,
 	   sp->sp_max,
@@ -112,7 +111,7 @@ print_account_status(const struct passwd *pw, const struct spwd *sp)
 	   sp->sp_inact);
   else if (pw->pw_passwd)
     printf("%s %s\n",
-	   pw->pw_name, pw_status (pw->pw_passwd));
+	   pw->pw_name, pw_status(pw->pw_passwd));
   else
     {
       fprintf(stderr, "Malformed password data obtained for user '%s'.\n",
@@ -309,7 +308,6 @@ modify_account(struct passwd *pw, struct spwd *sp, int args,
       return 0;
     }
 
-  /* XXX unify opening socket */
   r = connect_to_pwupdd(&link, _VARLINK_PWUPD_SOCKET, &error);
   if (r < 0)
     {
@@ -435,8 +433,8 @@ main(int argc, char **argv)
           {NULL,          0,                 NULL, '\0'}
         };
 
-      c = getopt_long (argc, argv, "dehI:klm:M:qSuvw:",
-                       long_options, &option_index);
+      c = getopt_long(argc, argv, "dehI:klm:M:qSuvw:",
+		      long_options, &option_index);
       if (c == (-1))
         break;
       switch (c)
