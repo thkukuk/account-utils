@@ -2,6 +2,7 @@
 
 #include "config.h"
 
+#include <limits.h>
 #include <string.h>
 #include <systemd/sd-varlink.h>
 
@@ -113,6 +114,30 @@ user_record_free(struct user_record *var)
   var->account_name = mfree(var->account_name);
   var->content_passwd = sd_json_variant_unref(var->content_passwd);
   var->content_shadow = sd_json_variant_unref(var->content_shadow);
+}
+
+/* long is different on 32bit and 64bit architectures, but we don't have
+   a sd_json_dispatch_long function */
+struct spwd64 {
+  char     *sp_namp;
+  char     *sp_pwdp;
+  int64_t  sp_lstchg;
+  int64_t  sp_min;
+  int64_t  sp_max;
+  int64_t  sp_warn;
+  int64_t  sp_inact;
+  int64_t  sp_expire;
+  uint64_t sp_flag;
+};
+
+static inline int
+assign_check_range(long *dest, int64_t src)
+{
+  if (src > LONG_MAX)
+    return -EOVERFLOW;
+
+  *dest = (long)src;
+  return 0;
 }
 
 int
@@ -236,32 +261,59 @@ pwaccess_get_user_record(int64_t uid, const char *user,
       return r;
     }
 
-  /* XXX the following code does not work on 32bit archs (long no int64)! */
   if (!sd_json_variant_is_null(p.content_shadow) && sd_json_variant_elements(p.content_shadow) > 0)
     {
+      struct spwd64 sp64 = {NULL, NULL, 0, 0, 0, 0, 0, 0, 0};
       static const sd_json_dispatch_field dispatch_shadow_table[] = {
-	{ "name",   SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct spwd, sp_namp),   SD_JSON_MANDATORY },
-	{ "passwd", SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct spwd, sp_pwdp),   SD_JSON_NULLABLE },
-	{ "lstchg", SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_lstchg), 0 },
-	{ "min",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_min),    0 },
-	{ "max",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_max),    0 },
-	{ "warn",   SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_warn),   0 },
-	{ "inact",  SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_inact),  0 },
-	{ "expire", SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_expire), 0 },
-	{ "flag",   SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_flag),   0 },
+	{ "name",   SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct spwd64, sp_namp),   SD_JSON_MANDATORY },
+	{ "passwd", SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct spwd64, sp_pwdp),   SD_JSON_NULLABLE },
+	{ "lstchg", SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd64, sp_lstchg), 0 },
+	{ "min",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd64, sp_min),    0 },
+	{ "max",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd64, sp_max),    0 },
+	{ "warn",   SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd64, sp_warn),   0 },
+	{ "inact",  SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd64, sp_inact),  0 },
+	{ "expire", SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd64, sp_expire), 0 },
+	{ "flag",   SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd64, sp_flag),   0 },
 	{}
       };
 
-      sp = calloc(1, sizeof(struct spwd));
-      if (sp == NULL)
-	return -ENOMEM;
-
-      r = sd_json_dispatch(p.content_shadow, dispatch_shadow_table, SD_JSON_ALLOW_EXTENSIONS, sp);
+      r = sd_json_dispatch(p.content_shadow, dispatch_shadow_table, SD_JSON_ALLOW_EXTENSIONS, &sp64);
       if (r < 0)
 	{
 	  fprintf(stderr, "Failed to parse JSON shadow entry: %s\n", strerror(-r));
 	  return r;
 	}
+
+      sp = calloc(1, sizeof(struct spwd));
+      if (sp == NULL)
+	return -ENOMEM;
+
+      sp->sp_namp = sp64.sp_namp;
+      sp->sp_pwdp = sp64.sp_pwdp;
+      r = assign_check_range(&sp->sp_lstchg, sp64.sp_lstchg);
+      if (r < 0)
+	return r;
+      r = assign_check_range(&sp->sp_min, sp64.sp_min);
+      if (r < 0)
+	return r;
+      r = assign_check_range(&sp->sp_max, sp64.sp_max);
+      if (r < 0)
+	return r;
+      r = assign_check_range(&sp->sp_warn, sp64.sp_warn);
+      if (r < 0)
+	return r;
+      r = assign_check_range(&sp->sp_inact, sp64.sp_inact);
+      if (r < 0)
+	return r;
+      r = assign_check_range(&sp->sp_expire, sp64.sp_expire);
+      if (r < 0)
+	return r;
+      /* sp_flag is ~0ul if unset, but sd-json/sd-varlink
+	 convert this always to -1 */
+      if (sp64.sp_flag == (uint64_t)-1)
+	sp->sp_flag = ~0ul;
+      else
+	sp->sp_flag = sp64.sp_flag;
     }
 
   if (complete)
