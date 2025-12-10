@@ -450,7 +450,7 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
 
   /* Don't change GECOS if query does not come from root
      and result is not the one of the calling user */
-  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL /* XXX */))
+  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL))
     {
       if (asprintf(&error, "Peer UID %u is not allowed to access data of '%s'",
 		   peer_uid, p.name) < 0)
@@ -785,7 +785,7 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
 
   /* Don't change shell if query does not come from root
      and result is not the one of the calling user */
-  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL /* XXX */))
+  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL))
     {
       _cleanup_free_ char *error = NULL;
 
@@ -997,7 +997,7 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
 
   /* Don't change password if query does not come from root
      and result is not the one of the calling user */
-  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL /* XXX */))
+  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL))
     {
       _cleanup_free_ char *error = NULL;
 
@@ -1243,8 +1243,10 @@ vl_method_UpdatePasswdShadow(sd_varlink *link, sd_json_variant *parameters,
 	return return_errno_error(link, "Parsing JSON shadow entry", r);
     }
 
-  /* XXX check that pw->pw_name and sp->sp_namp are identical if both
-     are provided */
+  /* Check that pw->pw_name and sp->sp_namp are identical if both are
+     provided */
+  if (pw && sp && !streq(pw->pw_name, sp->sp_namp))
+    return return_errno_error(link, "Check for identical account names", -EINVAL);
 
   if (pw)
     {
