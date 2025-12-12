@@ -147,7 +147,7 @@ pwaccessd_c = ['src/pwaccessd.c', 'src/varlink-org.openSUSE.pwaccess.c',
 pwupdd_c = ['src/pwupdd.c', 'src/varlink-org.openSUSE.pwupd.c',
             'src/varlink-service-common.c']
 newidmapd_c = ['src/newidmapd.c', 'src/varlink-org.openSUSE.newidmapd.c',
-               'libcommon/mkdir_p.c',
+               'libcommon/mkdir_p.c', 'src/map_range.c',
                'src/varlink-service-common.c']
 
 executable('pwaccessd',
@@ -174,13 +174,13 @@ executable('newidmapd',
            install_dir : libexecdir,
            install : true)
 
-executable('newuidmap', 'src/newxidmap.c',
+executable('newuidmap', 'src/newxidmap.c', 'src/map_range.c',
            c_args : '-DXID="uid"',
            include_directories : inc,
            link_with : [libclient, libcommon],
            dependencies : [libsystemd],
            install : true)
-executable('newgidmap', 'src/newxidmap.c',
+executable('newgidmap', 'src/newxidmap.c', 'src/map_range.c',
            c_args : '-DXID="gid"',
            include_directories : inc,
            link_with : [libclient, libcommon],

@@ -8,6 +8,7 @@
 #include <systemd/sd-varlink.h>
 
 #include "basics.h"
+#include "map_range.h"
 
 struct status {
   bool success;
@@ -18,21 +19,6 @@ static void
 status_free (struct status *var)
 {
   var->error = mfree(var->error);
-}
-
-struct map_range {
-  unsigned long upper; /* first ID inside the namespace */
-  unsigned long lower; /* first ID outside the namespace */
-  unsigned long count; /* Length of the inside and outside ranges */
-};
-
-static void
-map_range_freep(struct map_range **var)
-{
-  if (!var || !*var)
-    return;
-
-  *var = mfree(*var);
 }
 
 static int
