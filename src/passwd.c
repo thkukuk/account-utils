@@ -387,7 +387,7 @@ modify_account(struct passwd *pw, struct spwd *sp, int args,
     }
 
   if (!quiet)
-    printf("Password changed.\n");
+    printf("Account information updated.\n");
 
   return 0;
 }
