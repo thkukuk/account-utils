@@ -13,7 +13,7 @@
 #include "mkdir_p.h"
 #include "varlink-service-common.h"
 #include "pwaccess.h"
-
+#include "map_range.h"
 #include "varlink-org.openSUSE.newidmapd.h"
 
 #define USEC_PER_SEC  ((uint64_t) 1000000ULL)
@@ -21,24 +21,6 @@
 #define DEFAULT_EXIT_USEC (30*USEC_PER_SEC)
 
 #define UID_MAX ((uid_t)-1)
-
-static int socket_activation = false;
-
-/* XXX unify with newxidmap.c */
-struct map_range {
-  int64_t upper; /* first ID inside the namespace */
-  int64_t lower; /* first ID outside the namespace */
-  int64_t count; /* Length of the inside and outside ranges */
-};
-
-static void
-map_range_freep(struct map_range **var)
-{
-  if (!var || !*var)
-    return;
-
-  *var = mfree(*var);
-}
 
 struct parameters {
   pid_t pid;
@@ -431,21 +413,21 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
 /* Send a messages to systemd daemon, that inicialization of daemon
    is finished and daemon is ready to accept connections. */
 static void
-announce_ready (void)
+announce_ready(void)
 {
-  int r = sd_notify (0, "READY=1\n"
-		     "STATUS=Processing requests...");
+  int r = sd_notify(0, "READY=1\n"
+		    "STATUS=Processing requests...");
   if (r < 0)
-    log_msg (LOG_ERR, "sd_notify(READY) failed: %s", strerror(-r));
+    log_msg(LOG_ERR, "sd_notify(READY) failed: %s", strerror(-r));
 }
 
 static void
-announce_stopping (void)
+announce_stopping(void)
 {
-  int r = sd_notify (0, "STOPPING=1\n"
-		     "STATUS=Shutting down...");
+  int r = sd_notify(0, "STOPPING=1\n"
+		    "STATUS=Shutting down...");
   if (r < 0)
-    log_msg (LOG_ERR, "sd_notify(STOPPING) failed: %s", strerror(-r));
+    log_msg(LOG_ERR, "sd_notify(STOPPING) failed: %s", strerror(-r));
 }
 
 static int
@@ -477,7 +459,7 @@ varlink_event_loop_with_idle(sd_event *e, sd_varlink_server *s)
 }
 
 static int
-run_varlink (void)
+run_varlink(bool socket_activation)
 {
   int r;
   _cleanup_(sd_event_unrefp) sd_event *event = NULL;
@@ -491,48 +473,49 @@ run_varlink (void)
       return r;
     }
 
-  r = sd_event_new (&event);
+  r = sd_event_new(&event);
   if (r < 0)
     {
-      log_msg (LOG_ERR, "Failed to create new event: %s",
-	       strerror (-r));
+      log_msg(LOG_ERR, "Failed to create new event: %s", strerror(-r));
       return r;
     }
 
   r = sd_varlink_server_new (&varlink_server, SD_VARLINK_SERVER_ACCOUNT_UID|SD_VARLINK_SERVER_INHERIT_USERDATA|SD_VARLINK_SERVER_INPUT_SENSITIVE);
   if (r < 0)
     {
-      log_msg (LOG_ERR, "Failed to allocate varlink server: %s",
-	       strerror (-r));
+      log_msg(LOG_ERR, "Failed to allocate varlink server: %s",
+	      strerror(-r));
       return r;
     }
 
   r = sd_varlink_server_set_description (varlink_server, "newidmapd");
   if (r < 0)
     {
-      log_msg (LOG_ERR, "Failed to set varlink server description: %s",
-	       strerror (-r));
+      log_msg(LOG_ERR, "Failed to set varlink server description: %s",
+	      strerror(-r));
       return r;
     }
 
-  r = sd_varlink_server_set_info (varlink_server, NULL, PACKAGE" (newidmapd)",
-				  VERSION, "https://github.com/thkukuk/newidmapd");
+  r = sd_varlink_server_set_info(varlink_server, NULL, PACKAGE" (newidmapd)",
+				 VERSION,
+				 "https://github.com/thkukuk/newidmapd");
   if (r < 0)
     return r;
 
-  r = sd_varlink_server_add_interface (varlink_server, &vl_interface_org_openSUSE_newidmapd);
+  r = sd_varlink_server_add_interface(varlink_server,
+				      &vl_interface_org_openSUSE_newidmapd);
   if (r < 0)
     {
       log_msg(LOG_ERR, "Failed to add interface: %s", strerror(-r));
       return r;
     }
 
-  r = sd_varlink_server_bind_method_many (varlink_server,
-					  "org.openSUSE.newidmapd.WriteMappings",  vl_method_write_mappings,
-					  "org.openSUSE.newidmapd.GetEnvironment", vl_method_get_environment,
-					  "org.openSUSE.newidmapd.Ping",           vl_method_ping,
-					  "org.openSUSE.newidmapd.Quit",           vl_method_quit,
-					  "org.openSUSE.newidmapd.SetLogLevel",    vl_method_set_log_level);
+  r = sd_varlink_server_bind_method_many(varlink_server,
+					 "org.openSUSE.newidmapd.WriteMappings",  vl_method_write_mappings,
+					 "org.openSUSE.newidmapd.GetEnvironment", vl_method_get_environment,
+					 "org.openSUSE.newidmapd.Ping",           vl_method_ping,
+					 "org.openSUSE.newidmapd.Quit",           vl_method_quit,
+					 "org.openSUSE.newidmapd.SetLogLevel",    vl_method_set_log_level);
   if (r < 0)
     {
       log_msg(LOG_ERR, "Failed to bind Varlink methods: %s",
@@ -540,29 +523,32 @@ run_varlink (void)
       return r;
     }
 
-  sd_varlink_server_set_userdata (varlink_server, event);
+  sd_varlink_server_set_userdata(varlink_server, event);
 
-  r = sd_varlink_server_attach_event (varlink_server, event, SD_EVENT_PRIORITY_NORMAL);
+  r = sd_varlink_server_attach_event(varlink_server, event,
+				     SD_EVENT_PRIORITY_NORMAL);
   if (r < 0)
     {
-      log_msg (LOG_ERR, "Failed to attach to event: %s", strerror (-r));
+      log_msg(LOG_ERR, "Failed to attach to event: %s", strerror(-r));
       return r;
     }
 
-  r = sd_varlink_server_listen_auto (varlink_server);
+  r = sd_varlink_server_listen_auto(varlink_server);
   if (r < 0)
     {
-      log_msg (LOG_ERR, "Failed to listen: %s", strerror (-r));
+      log_msg(LOG_ERR, "Failed to listen: %s", strerror(-r));
       return r;
     }
 
 
   if (!socket_activation)
     {
-      r = sd_varlink_server_listen_address(varlink_server, _VARLINK_NEWIDMAPD_SOCKET, 0666);
+      r = sd_varlink_server_listen_address(varlink_server,
+					   _VARLINK_NEWIDMAPD_SOCKET, 0666);
       if (r < 0)
 	{
-	  log_msg (LOG_ERR, "Failed to bind to Varlink socket: %s", strerror (-r));
+	  log_msg(LOG_ERR, "Failed to bind to Varlink socket: %s",
+		  strerror(-r));
 	  return r;
 	}
     }
@@ -578,7 +564,7 @@ run_varlink (void)
 }
 
 static void
-print_help (void)
+print_help(void)
 {
   printf("newidmapd - manage passwd and shadow\n");
 
@@ -590,8 +576,10 @@ print_help (void)
 }
 
 int
-main (int argc, char **argv)
+main(int argc, char **argv)
 {
+  bool socket_activation = false;
+
   while (1)
     {
       int c;
@@ -608,7 +596,7 @@ main (int argc, char **argv)
         };
 
 
-      c = getopt_long (argc, argv, "sdvh?", long_options, &option_index);
+      c = getopt_long(argc, argv, "sdvh?", long_options, &option_index);
       if (c == (-1))
         break;
       switch (c)
@@ -621,16 +609,16 @@ main (int argc, char **argv)
           break;
         case '?':
         case 'h':
-          print_help ();
+          print_help();
           return 0;
         case 'v':
 	  set_max_log_level(LOG_INFO);
           break;
         case '\255':
-          fprintf (stdout, "newidmapd (%s) %s\n", PACKAGE, VERSION);
+          fprintf(stdout, "newidmapd (%s) %s\n", PACKAGE, VERSION);
           return 0;
         default:
-          print_help ();
+          print_help();
           return 1;
         }
     }
@@ -640,20 +628,20 @@ main (int argc, char **argv)
 
   if (argc > 1)
     {
-      fprintf (stderr, "Try `newidmapd --help' for more information.\n");
+      fprintf(stderr, "Try `newidmapd --help' for more information.\n");
       return 1;
     }
 
-  log_msg (LOG_INFO, "Starting newidmapd (%s) %s...", PACKAGE, VERSION);
+  log_msg(LOG_INFO, "Starting newidmapd (%s) %s...", PACKAGE, VERSION);
 
-  int r = run_varlink ();
+  int r = run_varlink(socket_activation);
   if (r < 0)
     {
-      log_msg (LOG_ERR, "ERROR: varlink loop failed: %s", strerror (-r));
+      log_msg(LOG_ERR, "ERROR: varlink loop failed: %s", strerror(-r));
       return -r;
     }
 
-  log_msg (LOG_INFO, "newidmapd stopped.");
+  log_msg(LOG_INFO, "newidmapd stopped.");
 
   return 0;
 }
