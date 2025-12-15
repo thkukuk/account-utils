@@ -23,6 +23,7 @@
 #define ARG_LOCK_PASSWORD    4
 #define ARG_UNLOCK_PASSWORD  8
 #define ARG_STATUS_ACCOUNT  16
+#define ARG_PASSWORD_STDIN  32
 
 
 static int
@@ -54,6 +55,7 @@ print_help(void)
   fputs("  -m, --mindays <days>   Minimum # of days before password can be changed\n", stdout);
   fputs("  -M, --maxdays <days>   Maximum # of days before password can be canged\n", stdout);
   fputs("  -q, --quiet            Be silent\n", stdout);
+  fputs("  -s, --stdin            Read new password from stdin\n", stdout);
   fputs("  -S, --status           Display account status\n", stdout);
   fputs("  -u, --unlock           Unlock password\n", stdout);
   fputs("  -v, --version          Print program version\n", stdout);
@@ -392,6 +394,75 @@ modify_account(struct passwd *pw, struct spwd *sp, int args,
   return 0;
 }
 
+/* A conversation function which uses an internally-stored value for
+ * the responses. */
+static int
+stdin_conv (int num_msg, const struct pam_message **msg,
+            struct pam_response **response, void *appdata_ptr)
+{
+  struct pam_response *reply;
+  const char *stdin_input = appdata_ptr;
+  size_t count;
+
+  *response = NULL;
+
+  /* Sanity test. */
+  if (num_msg <= 0)
+    return PAM_CONV_ERR;
+
+  /* Allocate memory for the responses. */
+  reply = calloc (num_msg, sizeof (struct pam_response));
+  if (reply == NULL)
+    return PAM_CONV_ERR;
+
+  /* Each prompt elicits the same response. */
+  for (count = 0; count < (size_t)num_msg; count++)
+    {
+      switch (msg[count]->msg_style)
+	{
+	case PAM_PROMPT_ECHO_ON:
+	  /* unsupported, free memory and return error */
+	  fprintf(stderr, "PAM_PROMPT_ECHO_ON unsupported together with --stdin\n");
+	  for (size_t i = 0; i < count; i++)
+	    if (reply[i].resp)
+	      {
+		explicit_bzero(reply[i].resp, strlen(reply[i].resp));
+		reply[i].resp = mfree(reply[i].resp);
+	      }
+	  reply = mfree(reply);
+	  return PAM_CONV_ERR;
+	  break;
+	case PAM_PROMPT_ECHO_OFF:
+	  reply[count].resp_retcode = 0;
+	  reply[count].resp = strdup(stdin_input);
+	  break;
+	case PAM_ERROR_MSG:
+	  fprintf(stderr, "%s\n", msg[count]->msg);
+	  break;
+        case PAM_TEXT_INFO:
+	  fprintf(stdout, "%s\n", msg[count]->msg);
+	  break;
+        default:
+	  fprintf(stderr, "Erroneous conversation (%d)\n",
+		  msg[count]->msg_style);
+	  for (size_t i = 0; i < count; i++)
+	    if (reply[i].resp)
+	      {
+		explicit_bzero(reply[i].resp, strlen(reply[i].resp));
+		reply[i].resp = mfree(reply[i].resp);
+	      }
+	  reply = mfree(reply);
+	  return PAM_CONV_ERR;
+	  break;
+        }
+    }
+
+  /* Set the pointers in the response structure and return. */
+  *response = reply;
+  return PAM_SUCCESS;
+}
+
+
 int
 main(int argc, char **argv)
 {
@@ -426,6 +497,7 @@ main(int argc, char **argv)
 	  {"mindays",     required_argument, NULL, 'm' },
 	  {"maxdays",     required_argument, NULL, 'M' },
 	  {"quiet",       no_argument,       NULL, 'q' },
+	  {"stdin",       no_argument,       NULL, 's' },
 	  {"status",      no_argument,       NULL, 'S' },
 	  {"unlock",      no_argument,       NULL, 'u' },
 	  {"version",     no_argument,       NULL, 'v' },
@@ -466,6 +538,9 @@ main(int argc, char **argv)
 	case 'q':
 	  quiet = true;
 	  pam_flags |= PAM_SILENT;
+	  break;
+	case 's':
+	  args |= ARG_PASSWORD_STDIN;
 	  break;
 	case 'S':
 	  args |= ARG_STATUS_ACCOUNT;
@@ -535,11 +610,37 @@ main(int argc, char **argv)
 
   if (args & ARG_STATUS_ACCOUNT)
     return print_account_status(pw, sp);
-  else if (args)
+  else if (args & (ARG_DELETE_PASSWORD | ARG_EXPIRE | ARG_LOCK_PASSWORD | ARG_UNLOCK_PASSWORD | ARG_STATUS_ACCOUNT))
     return modify_account(pw, sp, args, inactive, mindays, maxdays,
 			  warndays, quiet);
   else
     {
+      pam_handle_t *pamh = NULL;
+
+      if (args & ARG_PASSWORD_STDIN)
+	{
+	  char *ptr;
+          char password[PAM_MAX_RESP_SIZE]; /* independent of crypt type, PAM will not accept anything longer */
+
+          r = read(STDIN_FILENO, password, sizeof(password) - 1);
+          if (r < 0)
+            {
+	      r = errno;
+              fprintf(stderr, "Error reading from stdin: %s\n", strerror(r));
+              return r;
+            }
+
+          password[r] = '\0';
+          /* Remove trailing \n.  */
+          ptr = strchr(password, '\n');
+          if (ptr)
+            *ptr = 0;
+          conv.conv = stdin_conv;
+          conv.appdata_ptr = strdup(password);
+	  if (conv.appdata_ptr == NULL)
+	    return oom();
+	}
+
       r = chauthtok(user, pam_flags);
       if (!PWACCESS_IS_NOT_RUNNING(-r))
 	return r;
@@ -549,12 +650,6 @@ main(int argc, char **argv)
 	 if system got booted with e.g. init=/bin/bash */
       if (geteuid() != 0)
 	return r; /* return error accessing pwupdd */
-
-      pam_handle_t *pamh = NULL;
-      struct pam_conv conv = {
-	misc_conv,
-	NULL
-      };
 
       r = pam_start("passwd", user, &conv, &pamh);
       if (r != PAM_SUCCESS)

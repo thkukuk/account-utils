@@ -4,6 +4,8 @@
 
 #include <security/pam_misc.h>
 
+extern struct pam_conv conv;
+
 struct result {
   bool success;
   char *error;

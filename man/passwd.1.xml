@@ -161,6 +161,17 @@
       </varlistentry>
       <varlistentry>
         <term>
+          <option>-s, --stdin</option>
+        </term>
+        <listitem>
+          <para>
+	    Read the password from stdin, which could also be a pipe.
+	    Other input requested from a PAM module will lead to an error.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
           <option>-S, --status</option>
         </term>
         <listitem>

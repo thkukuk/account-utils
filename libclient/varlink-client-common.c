@@ -9,6 +9,11 @@
 #include "basics.h"
 #include "varlink-client-common.h"
 
+struct pam_conv conv = {
+  misc_conv,
+  NULL
+};
+
 struct result *
 struct_result_free(struct result *var)
 {
@@ -142,7 +147,7 @@ reply_callback(sd_varlink *link _unused_,
   else /* got pam_message */
     {
       const struct pam_message *arg = &pmsg;
-      r = misc_conv(1, &arg, resp, NULL);
+      r = conv.conv(1, &arg, resp, conv.appdata_ptr);
       if (r != PAM_SUCCESS)
 	{
 	  fprintf(stderr, "misc_conv() failed: %s\n", pam_strerror(NULL, r));
