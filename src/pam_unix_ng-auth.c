@@ -10,6 +10,46 @@
 #include "pwaccess.h"
 #include "verify.h"
 
+static bool
+password_is_blank(const char *user, struct config_t *cfg)
+{
+  bool nullok = (cfg->ctrl & ARG_NULLOK) && !(cfg->ctrl & ARG_NONULL);
+  bool authenticated = false;
+  int r;
+
+  /* Never allow empty password if PAM_DISALLOW_NULL_AUTHTOK is set */
+  if (cfg->ctrl & ARG_NONULL)
+    return false;
+
+  /* Ask always for a password if empty passwords are forbidden */
+  if (!nullok)
+    return false;
+
+  /* if something fails, return false and user has to enter an empty password
+     as worst. */
+
+#if 0
+  /* XXX this needs a new option like the "nullresetok" from
+     pam_unix.so. */
+  r = pwaccess_check_expired(user, NULL, NULL, NULL);
+  if (r < 0)
+    return false;
+  else if (r > 0 && r != PWA_EXPIRED_CHANGE_PW)
+    return false;
+  else if (r == PWA_EXPIRED_CHANGE_PW)
+    nullok = true;
+#endif
+
+  r = pwaccess_verify_password(user, "", nullok, &authenticated, NULL);
+  if (r != PAM_SUCCESS)
+    return false;
+
+  if (!authenticated)
+    return false;
+
+  return true;
+}
+
 static int
 authenticate(pam_handle_t *pamh, struct config_t *cfg)
 {
@@ -39,18 +79,20 @@ authenticate(pam_handle_t *pamh, struct config_t *cfg)
   else if (cfg->ctrl & ARG_DEBUG)
     pam_syslog(pamh, LOG_DEBUG, "username [%s]", user);
 
-  /* XXX Don't prompt for a password if it is empty */
-
-  /* get the users password */
-  r = pam_get_authtok(pamh, PAM_AUTHTOK, &password, NULL /* prompt */);
-  if (r != PAM_SUCCESS)
+  /* Don't prompt for a password if it is empty */
+  if (!password_is_blank(user, cfg))
     {
-      if (cfg->ctrl & ARG_DEBUG)
-        pam_syslog(pamh, LOG_DEBUG, "pam_get_authtok failed: return %d", r);
-      if (r != PAM_CONV_AGAIN)
-	pam_syslog(pamh, LOG_CRIT, "Could not get password for [%s]", user);
+      /* get the users password */
+      r = pam_get_authtok(pamh, PAM_AUTHTOK, &password, NULL /* prompt */);
+      if (r != PAM_SUCCESS)
+	{
+	  if (cfg->ctrl & ARG_DEBUG)
+	    pam_syslog(pamh, LOG_DEBUG, "pam_get_authtok failed: return %d", r);
+	  if (r != PAM_CONV_AGAIN)
+	    pam_syslog(pamh, LOG_CRIT, "Could not get password for [%s]", user);
 
-      return (r == PAM_CONV_AGAIN ? PAM_INCOMPLETE:r);
+	  return (r == PAM_CONV_AGAIN ? PAM_INCOMPLETE:r);
+	}
     }
 
   if (cfg->fail_delay != 0)
@@ -67,7 +109,7 @@ authenticate(pam_handle_t *pamh, struct config_t *cfg)
 	}
     }
 
-  r = authenticate_user(pamh, cfg->ctrl, user, password, &authenticated, &error);
+  r = authenticate_user(pamh, cfg->ctrl, user, strempty(password), &authenticated, &error);
   if (error)
     pam_error(pamh, "%s", error);
   if (r != PAM_SUCCESS)
