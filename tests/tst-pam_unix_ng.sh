@@ -50,8 +50,7 @@ echo '' | pamtester "$PAM_SERVICE" "$TEST_USER" "authenticate(PAM_DISALLOW_NULL_
 expect_failure "Failure with empty password"
 
 echo "--- Login with empty password (nullok)"
-# XXX need of echo is a bug
-echo '' | pamtester "$PAM_SERVICE" "$TEST_USER" authenticate
+pamtester "$PAM_SERVICE" "$TEST_USER" authenticate
 expect_success "Login with empty password"
 
 # Set the 12-character password non-interactively
