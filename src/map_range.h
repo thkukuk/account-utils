@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <stdint.h>
+
 struct map_range {
   int64_t upper; /* first ID inside the namespace */
   int64_t lower; /* first ID outside the namespace */
