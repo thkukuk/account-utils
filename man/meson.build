@@ -57,4 +57,16 @@ custom_target('pam_debuginfo.8',
               command : xslt_cmd + [custom_man_xsl, '@INPUT@'],
               install : want_man,
               install_dir : mandir8)
+custom_target('pwaccessd.8',
+              input : 'pwaccessd.8.xml',
+              output : 'pwaccessd.8',
+              command : xslt_cmd + [custom_man_xsl, '@INPUT@'],
+              install : want_man,
+              install_dir : mandir8)
+custom_target('pwupdd.8',
+              input : 'pwupdd.8.xml',
+              output : 'pwupdd.8',
+              command : xslt_cmd + [custom_man_xsl, '@INPUT@'],
+              install : want_man,
+              install_dir : mandir8)
 endif

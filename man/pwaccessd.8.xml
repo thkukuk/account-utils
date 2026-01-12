@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="pwaccessd">
+  <refmeta>
+    <refentrytitle>pwaccessd</refentrytitle>
+    <manvolnum>8</manvolnum>
+    <refmiscinfo class="source">account-utils %version%</refmiscinfo>
+    <refmiscinfo class="manual">pwaccessd</refmiscinfo>
+  </refmeta>
+
+  <refnamediv>
+    <refname>pwaccessd</refname>
+    <refname>pwaccessd.service</refname>
+    <refname>pwaccessd.socket</refname>
+    <refpurpose>manage passwd and shadow information</refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <cmdsynopsis>
+      <command>pwaccessd.service</command>
+    </cmdsynopsis>
+    <cmdsynopsis>
+      <command>pwaccessd.socket</command>
+    </cmdsynopsis>
+    <cmdsynopsis>
+      <command>/usr/libexec/pwaccessd</command>
+      <arg choice="opt">OPTIONS</arg>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>Description</title>
+    <para>
+      <command>pwaccessd</command> is a <citerefentry><refentrytitle>systemd</refentrytitle><manvolnum>1</manvolnum></citerefentry> socket-activated service
+      which provides account information in <structname>struct passwd</structname> and <structname>struct shadow</structname> format.
+      It is capable of checking if a password or account has expired and verifies passwords.
+    </para>
+    <para>
+      By default, normal users only have access to their own <filename>passwd</filename> and <filename>shadow</filename> entries.
+      The <systemitem class="username">root</systemitem> user has access to all accounts.
+      Specific users can be granted extended access via configuration.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Options</title>
+    <variablelist>
+      <varlistentry>
+        <term><option>-s</option></term>
+        <term><option>--socket</option></term>
+        <listitem>
+          <para>Activation through socket. This is the standard mode when running under systemd.</para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>-d</option></term>
+        <term><option>--debug</option></term>
+        <listitem>
+          <para>Enable debug mode.</para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>-v</option></term>
+        <term><option>--verbose</option></term>
+        <listitem>
+          <para>Enable verbose logging.</para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>-?</option></term>
+        <term><option>--help</option></term>
+        <listitem>
+          <para>Give the help list.</para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--version</option></term>
+        <listitem>
+          <para>Print program version.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Varlink Interfaces</title>
+    <para>
+      The <command>pwaccessd</command> daemon exposes the following functionality via Varlink interfaces:
+    </para>
+    <variablelist>
+      <varlistentry>
+        <term><function>GetAccountName</function></term>
+        <listitem>
+          <para>Provides the user name corresponding to a given UID.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><function>GetUserRecord</function></term>
+        <listitem>
+          <para>Provides the <structname>passwd</structname> and <structname>shadow</structname> entry for a given UID or account name.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><function>GetGroupRecord</function></term>
+        <listitem>
+          <para>Provides the group entry for a given GID or group name.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><function>VerifyPassword</function></term>
+        <listitem>
+          <para>Validates a password for a specific user.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><function>ExpiredCheck</function></term>
+        <listitem>
+          <para>Checks if a user account or password is expired.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Configuration</title>
+    <para>
+      <command>pwaccessd</command> reads its configuration from <filename>pwaccessd.conf</filename>.
+      It follows the UAPI Configuration Files Specification, meaning it searches for configuration files in directories such as
+      <filename>/usr/share/account-utils/</filename>, <filename>/run/account-utils/</filename>, and <filename>/etc/account-utils/</filename>.
+      Files in <filename>/etc/account-utils/</filename> take precedence.
+    </para>
+    <para>
+      The configuration format is INI-style. The primary configuration key is <varname>allow</varname>.
+      This key accepts a list of user accounts that are allowed to read all passwd and shadow entries, in addition to root.
+    </para>
+    <para>
+      The <varname>allow</varname> key can be defined within specific sections (groups) corresponding to the Varlink interface methods:
+    </para>
+    <itemizedlist>
+      <listitem><para><literal>[GetUserRecord]</literal></para></listitem>
+      <listitem><para><literal>[VerifyPassword]</literal></para></listitem>
+      <listitem><para><literal>[ExpiredCheck]</literal></para></listitem>
+    </itemizedlist>
+    <para>
+      If the key is not found in the specific section, <command>pwaccessd</command> will fall back to looking in the <literal>[global]</literal> section.
+    </para>
+
+    <example>
+      <title>Example pwaccessd.conf</title>
+      <programlisting>
+[global]
+# Allow user 'admin' to perform all actions
+allow = admin
+
+[VerifyPassword]
+# Allow 'auth-service' to verify passwords, overriding global
+allow = auth-service
+      </programlisting>
+    </example>
+  </refsect1>
+
+  <refsect1>
+    <title>Files</title>
+    <variablelist>
+      <varlistentry>
+        <term><filename>/usr/libexec/pwaccessd</filename></term>
+        <listitem>
+          <para>The daemon binary.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><filename>/etc/account-utils/pwaccessd.conf</filename></term>
+        <listitem>
+          <para>The main configuration file.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <para>
+      <citerefentry><refentrytitle>systemd</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>expiry</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>passwd</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>passwd</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>shadow</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>pam_unix_ng</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+    </para>
+  </refsect1>
+</refentry>

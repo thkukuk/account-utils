@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="pwupdd" xml:lang="en">
+  <refmeta>
+    <refentrytitle>pwupdd</refentrytitle>
+    <manvolnum>8</manvolnum>
+    <refmiscinfo class="source">account-utils %version%</refmiscinfo>
+    <refmiscinfo class="manual">pwupdd</refmiscinfo>
+  </refmeta>
+
+  <refnamediv>
+    <refname>pwupdd</refname>
+    <refname>pwupdd.service</refname>
+    <refname>pwupdd.socket</refname>
+    <refpurpose>update passwd and shadow entries</refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <cmdsynopsis>
+      <command>pwupdd.service</command>
+    </cmdsynopsis>
+    <cmdsynopsis>
+      <command>pwupdd.socket</command>
+    </cmdsynopsis>
+    <cmdsynopsis>
+      <command>/usr/libexec/pwupdd</command>
+      <arg choice="opt" rep="repeat">OPTIONS</arg>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>Description</title>
+    <para>
+      <command>pwupdd</command> is an <citerefentry><refentrytitle>inetd</refentrytitle><manvolnum>8</manvolnum></citerefentry> style
+      socket-activated service. A new instance of the daemon is started for every incoming request.
+    </para>
+    <para>
+      It exposes a Varlink interface to allow authorized users to modify their own account data, including passwords,
+      login shells, and GECOS field information. Authentication is handled via <citerefentry><refentrytitle>PAM</refentrytitle><manvolnum>8</manvolnum></citerefentry>.
+      Additionally, the root user can utilize specific methods to update any <filename>/etc/passwd</filename> or
+      <filename>/etc/shadow</filename> entry.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Options</title>
+    <variablelist>
+      <varlistentry>
+        <term><option>-d</option>, <option>--debug</option></term>
+        <listitem>
+          <para>Enable debug mode.</para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>-v</option>, <option>--verbose</option></term>
+        <listitem>
+          <para>Enable verbose logging.</para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>-?</option>, <option>--help</option></term>
+        <listitem>
+          <para>Give the help list.</para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--version</option></term>
+        <listitem>
+          <para>Print program version.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Varlink Interfaces</title>
+    <para>
+      The service exposes the following methods via Varlink:
+    </para>
+    <variablelist>
+      <varlistentry>
+        <term><function>Chauthtok</function></term>
+        <listitem>
+          <para>
+            Changes the password for a provided user. Authentication is performed via PAM using the
+            configuration <filename>pwupd-passwd</filename>. This method may be called by the root user
+            or the user owning the record.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><function>Chfn</function></term>
+        <listitem>
+          <para>
+            Changes the finger (GECOS) information of a user. Authentication is performed via PAM using the
+            configuration <filename>pwupd-chfn</filename>. This method may be called by the root user
+            or the user owning the record.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><function>Chsh</function></term>
+        <listitem>
+          <para>
+            Changes the login shell of an account. Authentication is performed via PAM using the
+            configuration <filename>pwupd-chsh</filename>. This method may be called by the root user
+            or the user owning the record.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><function>UpdatePasswdShadow</function></term>
+        <listitem>
+          <para>
+            Updates the <filename>passwd</filename> and <filename>shadow</filename> entry of a specified user.
+            <emphasis role="bold">Only root is allowed to call this method.</emphasis>
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <para>
+      <citerefentry><refentrytitle>passwd</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>chfn</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>chsh</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>pam</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+    </para>
+  </refsect1>
+
+</refentry>
