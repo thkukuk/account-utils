@@ -1,8 +1,12 @@
 account-utils NEWS -- history of user-visible changes.
 
-Copyright (C) 2025 Thorsten Kukuk <kukuk@suse.com>.
+Copyright (C) 2025, 2026 Thorsten Kukuk <kukuk@suse.com>.
 
 Please enter bug reports at https://github.com/thkukuk/account-utils/issues
+
+Version 1.0.1
+* drop_privs: don't run the check as root
+* Add pwaccessd and pwupdd manual pages
 
 Version 1.0.0
 * Many bug fixes and other improvements

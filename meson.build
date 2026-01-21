@@ -12,7 +12,7 @@ project(
                   'b_lto=true',
 		  'warning_level=2'],
   license : ['GPL-2.0-or-later', 'LGPL-2.1-or-later'],
-  version : '1.0.0',
+  version : '1.0.1',
 )
 
 distribution = get_option('distribution')
