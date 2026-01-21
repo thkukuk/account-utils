@@ -18,8 +18,9 @@ drop_privs(void)
   if (setuid(getuid()) != 0)
     return -errno;
 
-  /* Try to regain root. If this succeeds, we failed to drop privileges. */
-  if (setuid(0) != -1)
+  /* Try to regain root. If this succeeds, we failed to drop
+     privileges. Don't do this as root, else the check will fail. */
+  if (getuid() != 0 && setuid(0) != -1)
     return -EPERM;
 
   return 0;
