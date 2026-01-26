@@ -1360,7 +1360,6 @@ main (int argc, char **argv)
       int option_index = 0;
       static struct option long_options[] =
         {
-	  {"socket", no_argument, NULL, 's'},
           {"debug", no_argument, NULL, 'd'},
           {"verbose", no_argument, NULL, 'v'},
           {"version", no_argument, NULL, '\255'},
@@ -1370,7 +1369,7 @@ main (int argc, char **argv)
         };
 
 
-      c = getopt_long (argc, argv, "sdvh?", long_options, &option_index);
+      c = getopt_long (argc, argv, "dvh?", long_options, &option_index);
       if (c == (-1))
         break;
       switch (c)
