@@ -70,8 +70,10 @@ log_info(pam_handle_t *pamh, const char *type, int flags, int loglevel)
   const void *tty = NULL;
   const char *login_name;
 
+#ifdef WITH_SELINUX
   if (getcon(&secon) < 0)
     pam_syslog(pamh, LOG_ERR, "getcon() failed: %s", strerror(errno));
+#endif
 
   pam_get_item(pamh, PAM_SERVICE, &service);
   pam_get_item(pamh, PAM_USER, &user);

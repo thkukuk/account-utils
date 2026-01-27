@@ -113,7 +113,9 @@ main(int argc, char **argv)
   bool printenv = false;
   int ngids = 0;
   gid_t *gids = NULL;
+#ifdef WITH_SELINUX
   char *secon = NULL;
+#endif
   char *cwd = NULL;
   int no_new_privs = prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0);
   const char *sestatus = selinux_status();
@@ -185,6 +187,7 @@ main(int argc, char **argv)
     }
   putchar('\n');
   printf("SELinux Status:    %s\n", sestatus);
+#ifdef WITH_SELINUX
   if (getcon(&secon) == 0)
     {
       size_t secon_len = strlen(secon);
@@ -196,6 +199,7 @@ main(int argc, char **argv)
     }
   else
     fprintf(stderr, "SELinux Context:   %s\n", strerror(errno));
+#endif
   printf("NoNewPrivs Status: %s\n", no_new_privs==0?"off":"on");
 
   cwd = get_current_dir_name();
