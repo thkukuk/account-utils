@@ -47,6 +47,9 @@ mkdir_p(const char *path, mode_t mode)
   if (r < 0)
     return r;
 
-  return mkdir(path, mode);
+  if (mkdir(path, mode) == -1)
+    return -errno;
+
+  return 0;
 }
 
