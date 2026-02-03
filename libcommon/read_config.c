@@ -38,6 +38,16 @@ trim_whitespace(char *str)
   return str;
 }
 
+/* check if string only contains digits */
+static int
+isnumber(const char *str)
+{
+  while(isdigit((unsigned char)*str))
+    str++;
+
+  return *str == '\0';
+}
+
 /* function to resolve a single user string (name or UID) to a uid_t
    Returns 0 on success, -errno on failure */
 static int
@@ -46,8 +56,8 @@ parse_token(const char *token, uid_t *result_uid)
   if (isempty(token))
     return -EINVAL;
 
-  /* if the first character is a number, it must be a UID */
-  if (isdigit(token[0]))
+  /* if token is a number, it must be a UID */
+  if (isnumber(token))
     {
       char *ep;
       long long ll;
