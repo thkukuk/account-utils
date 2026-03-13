@@ -770,20 +770,20 @@ main(int argc, char **argv)
 
   if (argc > 1)
     {
-      fprintf (stderr, "Try `pwaccessd --help' for more information.\n");
+      fprintf(stderr, "Try `pwaccessd --help' for more information.\n");
       return 1;
     }
 
-  log_msg (LOG_INFO, "Starting pwaccessd (%s) %s...", PACKAGE, VERSION);
+  log_msg(LOG_INFO, "Starting pwaccessd (%s) %s...", PACKAGE, VERSION);
 
-  int r = run_varlink (socket_activation, &ctx);
+  int r = run_varlink(socket_activation, &ctx);
   if (r < 0)
     {
-      log_msg (LOG_ERR, "ERROR: varlink loop failed: %s", strerror (-r));
+      log_msg(LOG_ERR, "ERROR: varlink loop failed: %s", strerror (-r));
       return -r;
     }
 
-  log_msg (LOG_INFO, "pwaccessd stopped.");
+  log_msg(LOG_INFO, "pwaccessd stopped.");
 
   return 0;
 }

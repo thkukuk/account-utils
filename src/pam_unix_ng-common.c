@@ -127,9 +127,13 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
     }
 
   if (cfg->ctrl & ARG_DEBUG)
-    pam_syslog(pamh, LOG_DEBUG, "Flags set by application:%s%s",
+    pam_syslog(pamh, LOG_DEBUG, "Flags set by application:%s%s%s%s%s%s",
 	       flags & PAM_SILENT?" PAM_SILENT":"",
-	       flags & PAM_DISALLOW_NULL_AUTHTOK?" PAM_DISALLOW_NULL_AUTHTOK":"");
+	       flags & PAM_DISALLOW_NULL_AUTHTOK?" PAM_DISALLOW_NULL_AUTHTOK":"",
+	       flags & PAM_ESTABLISH_CRED?" PAM_ESTABLISH_CRED":"",
+	       flags & PAM_DELETE_CRED?" PAM_DELETE_CRED":"",
+	       flags & PAM_REINITIALIZE_CRED?" PAM_REINITIALIZE_CRED":"",
+	       flags & PAM_REFRESH_CRED?" PAM_REFRESH_CRED":"");
   return 0;
 }
 
@@ -165,111 +169,135 @@ authenticate_user(pam_handle_t *pamh, uint32_t ctrl,
 
   r = pwaccess_verify_password(user, password, nullok,
 			       ret_authenticated, error);
-  if (r < 0)
+
+  if (r == 0)
+    return PAM_SUCCESS;
+
+  if (r == -ENODATA)
+    return PAM_USER_UNKNOWN;
+
+  if (PWACCESS_IS_NOT_RUNNING(r))
     {
+      pam_syslog(pamh, LOG_NOTICE, "pwaccess verify failed: %s",
+		 *error ? *error : strerror(-r));
+
+      // Try to start service at our own
+      r = start_pwaccessd(pamh, ctrl);
+      if (r == 0)
+	{
+	  *error = mfree(*error); // reset error string
+	  r = pwaccess_verify_password(user, password, nullok,
+				       ret_authenticated, error);
+
+	  if (r == 0)
+	    return PAM_SUCCESS;
+	}
       if (r == -ENODATA)
-        return PAM_USER_UNKNOWN;
+	return PAM_USER_UNKNOWN;
 
-      pam_syslog(pamh, LOG_ERR, "pwaccess verify failed: %s",
-                 *error ? *error : strerror(-r));
+      pam_syslog(pamh, LOG_ERR, "Second try pwaccess verify failed: %s",
+		 *error ? *error : strerror(-r));
+    }
+  else
+    pam_syslog(pamh, LOG_ERR, "pwaccess verify failed: %s",
+	       *error ? *error : strerror(-r));
 
-      if (PWACCESS_IS_NOT_RUNNING(r))
-        {
-          struct passwd pwdbuf;
-          struct passwd *pw = NULL;
-          struct spwd spbuf;
-          struct spwd *sp = NULL;
-          _cleanup_free_ char *buf = NULL;
-          _cleanup_free_ char *hash = NULL;
-          long bufsize;
+  // Try internal fallback and read /etc/shadow directly
+  struct passwd pwdbuf;
+  struct passwd *pw = NULL;
+  struct spwd spbuf;
+  struct spwd *sp = NULL;
+  _cleanup_free_ char *buf = NULL;
+  _cleanup_free_ char *hash = NULL;
+  long bufsize;
 
-          if (!(ctrl & ARG_QUIET))
-            pam_syslog(pamh, LOG_NOTICE, "pwaccessd not running, using internal fallback code");
+  if (!(ctrl & ARG_QUIET))
+    pam_syslog(pamh, LOG_NOTICE, "pwaccessd not running, using internal fallback code");
 
-          r = alloc_getxxnam_buffer(pamh, &buf, &bufsize);
-          if (r != PAM_SUCCESS)
-            return r;
+  r = alloc_getxxnam_buffer(pamh, &buf, &bufsize);
+  if (r != PAM_SUCCESS)
+    return r;
 
-          r = getpwnam_r(user, &pwdbuf, buf, bufsize, &pw);
-          if (pw == NULL)
-            {
-              if (r == 0)
-                {
-                  if (valid_name(user))
-                    pam_error(pamh, "User '%s' not found", user);
-                  else
-                    pam_error(pamh, "User not found (contains invalid characters)");
-                  return PAM_USER_UNKNOWN;
-                }
+  r = getpwnam_r(user, &pwdbuf, buf, bufsize, &pw);
+  if (pw == NULL)
+    {
+      if (r == 0)
+	{
+	  if (valid_name(user))
+	    pam_error(pamh, "User '%s' not found", user);
+	  else
+	    pam_error(pamh, "User not found (contains invalid characters)");
+	  return PAM_USER_UNKNOWN;
+	}
 
-              pam_syslog(pamh, LOG_WARNING, "getpwnam_r(): %s", strerror(r));
-              pam_error(pamh, "getpwnam_r(): %s", strerror(r));
-              return PAM_SYSTEM_ERR;
-            }
+      pam_syslog(pamh, LOG_WARNING, "getpwnam_r(): %s", strerror(r));
+      pam_error(pamh, "getpwnam_r(): %s", strerror(r));
+      return PAM_SYSTEM_ERR;
+    }
 
-          hash = strdup(strempty(pw->pw_passwd));
-          if (hash == NULL)
-            {
-              pam_syslog(pamh, LOG_CRIT, "Out of memory!");
-              pam_error(pamh, "Out of memory!");
-              return PAM_BUF_ERR;
-            }
-          if (is_shadow(pw)) /* Get shadow entry */
-            {
-              /* reuse buffer, !!! pw is no longer valid !!! */
-	      pw = NULL;
+  hash = strdup(strempty(pw->pw_passwd));
+  if (hash == NULL)
+    {
+      pam_syslog(pamh, LOG_CRIT, "Out of memory!");
+      pam_error(pamh, "Out of memory!");
+      return PAM_BUF_ERR;
+    }
+  if (is_shadow(pw)) /* Get shadow entry */
+    {
+      /* reuse buffer, !!! pw is no longer valid !!! */
+      pw = NULL;
 
-              r = getspnam_r(user, &spbuf, buf, bufsize, &sp);
-              if (sp == NULL)
-                {
-                  if (r != 0) /* r == 0 means there is no shadow entry for this account,
-				 so pw->pw_passwd is incorrectly set. Ignore, crypt()
-				 will fail. */
-                    {
-		      pam_syslog(pamh, LOG_WARNING, "getspnam_r(): %s", strerror(r));
-		      pam_error(pamh, "getspnam_r(): %s", strerror(r));
-		      return PAM_SYSTEM_ERR;
-		    }
-                }
-	      else
-		{
-		  hash = mfree(hash);
-		  hash = strdup(strempty(sp->sp_pwdp));
-		  if (hash == NULL)
-		    {
-		      pam_syslog(pamh, LOG_CRIT, "Out of memory!");
-		      pam_error(pamh, "Out of memory!");
-		      return PAM_BUF_ERR;
-		    }
-		}
-            }
-          r = verify_password(hash, password, nullok);
-          if (r == VERIFY_OK)
-            *ret_authenticated = true;
-          else if (r != VERIFY_FAILED)
+      r = getspnam_r(user, &spbuf, buf, bufsize, &sp);
+      if (sp == NULL)
+	{
+	  if (r != 0) /* r == 0 means there is no shadow entry for this account,
+			 so pw->pw_passwd is incorrectly set. Ignore, crypt()
+			 will fail. */
 	    {
-	      switch(r)
-		{
-		case VERIFY_CRYPT_DISABLED:
-		  pam_syslog(pamh, LOG_ERR, "crypt algo of hash is disabled");
-		  pam_error(pamh, "Crypt alogrithm of password hash is disabled");
-		  break;
-		case VERIFY_CRYPT_INVALID:
-		  pam_syslog(pamh, LOG_ERR, "crypt algo of hash is not supported");
-		  pam_error(pamh, "Crypt alogrithm of hash is not supported");
-		  break;
-		default:
-		  pam_syslog(pamh, LOG_ERR, "Unknown verify_password() error: %i", r);
-		  pam_error(pamh, "Unknown verify_password() error: %i", r);
-		  break;
-		}
+	      pam_syslog(pamh, LOG_WARNING, "getspnam_r(): %s", strerror(r));
+	      pam_error(pamh, "getspnam_r(): %s", strerror(r));
 	      return PAM_SYSTEM_ERR;
 	    }
-        }
+	}
       else
-        return PAM_SYSTEM_ERR;
+	{
+	  hash = mfree(hash);
+	  hash = strdup(strempty(sp->sp_pwdp));
+	  if (hash == NULL)
+	    {
+	      pam_syslog(pamh, LOG_CRIT, "Out of memory!");
+	      pam_error(pamh, "Out of memory!");
+	      return PAM_BUF_ERR;
+	    }
+	}
     }
-  return PAM_SUCCESS;
+  r = verify_password(hash, password, nullok);
+  if (r == VERIFY_OK)
+    {
+      *ret_authenticated = true;
+      return PAM_SUCCESS;
+    }
+  else if (r != VERIFY_FAILED)
+    {
+      switch(r)
+	{
+	case VERIFY_CRYPT_DISABLED:
+	  pam_syslog(pamh, LOG_ERR, "crypt algo of hash is disabled");
+	  pam_error(pamh, "Crypt alogrithm of password hash is disabled");
+	  break;
+	case VERIFY_CRYPT_INVALID:
+	  pam_syslog(pamh, LOG_ERR, "crypt algo of hash is not supported");
+	  pam_error(pamh, "Crypt alogrithm of hash is not supported");
+	  break;
+	default:
+	  pam_syslog(pamh, LOG_ERR, "Unknown verify_password() error: %i", r);
+	  pam_error(pamh, "Unknown verify_password() error: %i", r);
+	  break;
+	}
+      return PAM_SYSTEM_ERR;
+    }
+
+  return PAM_SYSTEM_ERR;
 }
 
 void

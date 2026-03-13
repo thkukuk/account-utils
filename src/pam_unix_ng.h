@@ -31,6 +31,8 @@ extern int authenticate_user(pam_handle_t *pamh, uint32_t ctrl,
 			     const char *user, const char *password,
 			     bool *ret_authenticated, char **error);
 
+extern int start_pwaccessd(pam_handle_t *pamh, uint32_t ctrl);
+
 extern int errno_to_pam(int e);
 
 extern void log_authentication_failure(pam_handle_t *pamh, const char *user);

@@ -23,7 +23,7 @@
   <refsect1>
     <title>DESCRIPTION</title>
     <para>
-      This is a standard UNIX authentication PAM module which delegates tasks requiring access to <filename>/etc/shadow</filename> to <citerefentry><refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum></citerefentry>, which allows to use this module in environments without setuid binaries. If pwaccessd is not running, it tries to read the local files as fallback itself.
+      This is a standard UNIX authentication PAM module which delegates tasks requiring access to <filename>/etc/shadow</filename> to <citerefentry><refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum></citerefentry>, which allows to use this module in environments without setuid binaries. If pwaccessd is not running, it tries at first to start it via D-Bus. If this fails, it tries to read the local files as fallback itself.
     </para>
   </refsect1>
 
@@ -64,7 +64,7 @@
             The <option>nullok</option> argument overrides this default.
           </para>
 	  <para>
-	    If the application sets the 
+	    If the application sets the
 	    <emphasis>PAM_DISALLOW_NULL_AUTHTOK</emphasis> flag,
 	    <option>nullok</option> is ignored in the auth module type.
 	  </para>

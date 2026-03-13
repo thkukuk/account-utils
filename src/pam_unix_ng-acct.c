@@ -33,9 +33,6 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
       if (r == -ENODATA)
 	return PAM_USER_UNKNOWN;
 
-      pam_syslog(pamh, LOG_ERR, "pwaccess expired failed: %s",
-		 error ? error : strerror(-r));
-
       if (PWACCESS_IS_NOT_RUNNING(r))
 	{
 	  struct spwd spbuf;
@@ -43,30 +40,54 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
 	  _cleanup_free_ char *buf = NULL;
 	  long bufsize = 0;
 
-	  if (!(cfg->ctrl & ARG_QUIET))
-	    pam_syslog(pamh, LOG_NOTICE, "pwaccessd not running, using internal fallback code");
+	  pam_syslog(pamh, LOG_NOTICE, "pwaccess expired failed: %s",
+		     error ? error : strerror(-r));
 
-	  r = alloc_getxxnam_buffer(pamh, &buf, &bufsize);
-	  if (r != PAM_SUCCESS)
-	    return r;
-
-	  r = getspnam_r(user, &spbuf, buf, bufsize, &sp);
-	  if (sp == NULL)
+	  // Try to start service at our own
+	  r = start_pwaccessd(pamh, cfg->ctrl);
+	  if (r == 0)
 	    {
-	      if (r != 0)
+	      error = mfree(error); // reset error string
+	      r = pwaccess_check_expired(user, &daysleft, NULL /* pwchangeable */, &error);
+
+	      if (r == -ENODATA)
+		return PAM_USER_UNKNOWN;
+	      if (r < 0)
+		pam_syslog(pamh, LOG_ERR, "Second try pwaccess expired failed: %s",
+			   error ? error : strerror(-r));
+	    }
+
+	  if (r < 0)
+	    {
+	      if (!(cfg->ctrl & ARG_QUIET))
+		pam_syslog(pamh, LOG_NOTICE, "pwaccessd not running, using internal fallback code");
+
+	      r = alloc_getxxnam_buffer(pamh, &buf, &bufsize);
+	      if (r != PAM_SUCCESS)
+		return r;
+
+	      r = getspnam_r(user, &spbuf, buf, bufsize, &sp);
+	      if (sp == NULL)
 		{
-		  pam_syslog(pamh, LOG_WARNING, "getspnam_r(): %s", strerror(r));
-		  pam_error(pamh, "getspnam_r(): %s", strerror(r));
-		  return PAM_SYSTEM_ERR;
+		  if (r != 0)
+		    {
+		      pam_syslog(pamh, LOG_WARNING, "getspnam_r(): %s", strerror(r));
+		      pam_error(pamh, "getspnam_r(): %s", strerror(r));
+		      return PAM_SYSTEM_ERR;
+		    }
+		  else
+		    r = PWA_EXPIRED_NO;
 		}
 	      else
-		r = PWA_EXPIRED_NO;
+		r = expired_check(sp, &daysleft, NULL /* pwchangeable */);
 	    }
-	  else
-	    r = expired_check(sp, &daysleft, NULL /* pwchangeable */);
 	}
       else
-	return PAM_SYSTEM_ERR;
+	{
+	  pam_syslog(pamh, LOG_ERR, "pwaccess expired failed: %s",
+		     error ? error : strerror(-r));
+	  return PAM_SYSTEM_ERR;
+	}
     }
 
   int retval = PAM_SUCCESS;

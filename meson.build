@@ -215,7 +215,7 @@ executable('expiry', 'src/expiry.c',
 
 pam_unix_ng_c = files('src/pam_unix_ng-common.c', 'src/pam_unix_ng-session.c',
                       'src/pam_unix_ng-acct.c', 'src/pam_unix_ng-auth.c',
-                      'src/pam_unix_ng-passwd.c')
+                      'src/pam_unix_ng-passwd.c', 'src/pam_unix_ng-spawn.c')
 pam_unix_ng_map = 'src/pam_unix_ng.map'
 pam_unix_ng_map_version = '-Wl,--version-script,@0@/@1@'.format(meson.current_source_dir(), pam_unix_ng_map)
 
@@ -227,7 +227,7 @@ pam_unix_ng = shared_library(
   link_args : ['-shared', pam_unix_ng_map_version],
   link_depends : pam_unix_ng_map,
   link_with : [libclient, libcommon, libpwaccess],
-  dependencies : [libcrypt, libeconf, libpam, libselinux],
+  dependencies : [libsystemd, libcrypt, libeconf, libpam, libselinux],
   install : true,
   install_dir : pamlibdir
 )
