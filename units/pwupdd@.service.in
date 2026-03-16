@@ -1,5 +1,6 @@
 [Unit]
 Description=Daemon to update passwd and shadow entries
+Documentation=man:pwupdd(8)
 After=local-fs.target
 
 [Service]
