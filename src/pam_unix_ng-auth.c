@@ -110,8 +110,9 @@ authenticate(pam_handle_t *pamh, struct config_t *cfg)
     }
 
   r = authenticate_user(pamh, cfg->ctrl, user, strempty(password), &authenticated, &error);
-  if (error)
-    pam_error(pamh, "%s", error);
+  if (error && (cfg->ctrl & ARG_DEBUG))
+    pam_syslog(pamh, LOG_DEBUG, "authenticate_user(%s) failed: %s",
+	       user, error);
   if (r != PAM_SUCCESS)
     return r;
 
