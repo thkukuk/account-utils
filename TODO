@@ -1,6 +1,4 @@
-- pam_unix_ng: handle PAM_SILENT correct
 - pwupd/pwaccess varlink definition: add OUTPUT fields
-- passwd: --stdin option
 
 Bugs:
 - "passwd -e <account>" reports "password changed"

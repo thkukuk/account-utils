@@ -4,6 +4,9 @@ Copyright (C) 2025, 2026 Thorsten Kukuk <kukuk@suse.com>.
 
 Please enter bug reports at https://github.com/thkukuk/account-utils/issues
 
+Version 1.2.0
+* Several small fixes
+
 Version 1.1.0
 * pam_unix_ng: start pwaccessd.socket if not running
 
