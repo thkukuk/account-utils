@@ -147,20 +147,20 @@ consttime_streq(const char *userinput, const char *secret)
 }
 
 int
-verify_password(const char *hash, const char *p, bool nullok)
+verify_password(const char *hash, const char *password, bool nullok)
 {
   _cleanup_free_ char *pp = NULL;
 
-  if (isempty(p) && !nullok)
+  if (isempty(password) && !nullok)
     return VERIFY_FAILED;
   else if (isempty(hash))
     {
-      if (isempty(p) && nullok)
+      if (isempty(password) && nullok)
 	return VERIFY_OK;
       else
 	return VERIFY_FAILED;
     }
-  else if (!p || *hash == '*' || *hash == '!')
+  else if (!password || *hash == '*' || *hash == '!')
     return VERIFY_FAILED;
   else
     {
@@ -180,7 +180,9 @@ verify_password(const char *hash, const char *p, bool nullok)
       cdata = calloc(1, sizeof(*cdata));
       if (cdata != NULL)
 	{
-	  pp = strdup(crypt_r(p, hash, cdata));
+	  char *cp = crypt_r(password, hash, cdata);
+	  if (cp)
+	    pp = strdup(cp);
 	  explicit_bzero(cdata, sizeof(struct crypt_data));
 	  free(cdata);
 	}
