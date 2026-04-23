@@ -97,7 +97,7 @@ mbstowcs_alloc (const char *string, wchar_t **ret)
     return -EINVAL;
 
   size = mbstowcs(NULL, string, 0);
-  if (size == (size_t) -1)
+  if (size == (size_t) -1) // equal to size == SIZE_MAX
     return -EINVAL;
 
   buf = calloc(size + 1, sizeof(wchar_t));
