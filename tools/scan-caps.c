@@ -115,13 +115,26 @@ check_file(const char *file, struct stat st)
     return 0;
 }
 
-/* Recursively walks a directory */
+static inline void
+closedirp(DIR **p)
+{
+  if (*p)
+    {
+      closedir(*p);
+      *p = NULL;
+    }
+}
+
+/* Recursively walks a directory.
+   Ignore most errors, continue with other files and directories, but
+   report error back. */
 static int
 walk_directory(const char *dir_path)
 {
-  DIR *dir;
+  _cleanup_(closedirp) DIR *dir;
   struct dirent *entry;
   struct stat st;
+  int retval = 0; // zero or latest reported error
   int r;
 
   if (!(dir = opendir(dir_path)))
@@ -149,7 +162,7 @@ walk_directory(const char *dir_path)
 	{
 	  r = -errno;
 	  fprintf(stderr, "lstat(%s) failed: %s\n", path, strerror(-r));
-	  return r;
+	  retval = r;
 	}
 
       if (S_ISLNK(st.st_mode))
@@ -159,23 +172,23 @@ walk_directory(const char *dir_path)
 	{
 	  r = walk_directory(path);  /* Recurse into subdirectory */
 	  if (r < 0)
-	    return r;
+	    retval = r;
 	}
       else
 	{
 	  r = check_file(path, st);
 	  if (r < 0)
-	    return r;
+	    retval = r;
 	}
     }
-  closedir(dir);
 
-  return 0;
+  return retval;
 }
 
 int
 main(int argc, char **argv)
 {
+  int retval = 0;
   int r;
 
   while (1)
@@ -217,20 +230,19 @@ main(int argc, char **argv)
 
   for (int i = 0; scan_list[i] != NULL; i++)
     {
-      // If scanning argv, ensure we stop exactly at argc to match original logic
-      // (Standard C guarantees argv[argc] is NULL, but this is defensively safe)
-      if (argc > 0 && i >= argc) break;
+      if (argc > 0 && i >= argc)
+	break;
 
       r = walk_directory(scan_list[i]);
       if (r < 0)
-        {
-          printf("Scan aborted.\n");
-          return -r;
-        }
+	retval = -r;
     }
 
   printf("----------------------------------------------------------------\n");
-  printf("Scan complete.\n");
+  if (retval != 0)
+    printf("Scan incomplete due to errors.\n");
+  else
+    printf("Scan complete.\n");
 
-  return 0;
+  return retval;
 }
