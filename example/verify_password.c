@@ -22,7 +22,7 @@ main(int argc, char **argv)
       return 1;
     }
 
-  r = pwaccess_verify_password(argv[1], argv[2], nullok,
+  r = pwaccess_verify_password(argv[1], strempty(argv[2]), nullok,
 			       &authenticated, &error);
   if (r < 0)
     {

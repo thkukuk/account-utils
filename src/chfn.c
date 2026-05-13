@@ -104,6 +104,7 @@ main(int argc, char **argv)
   _cleanup_free_ char *new_other = NULL;
   _cleanup_free_ char *new_room = NULL;
   _cleanup_free_ char *new_work_phone = NULL;
+  _cleanup_free_ char *user_copy = NULL;
   const char *old_full_name = NULL;
   const char *old_home_phone = NULL;
   const char *old_other = NULL;
@@ -203,12 +204,13 @@ main(int argc, char **argv)
 	  return -r;
 	}
 
-      user = strdupa(name);
-      if (user == NULL)
+      user_copy = strdup(name);
+      if (user_copy == NULL)
         {
           fprintf(stderr, "Out of memory!\n");
           return ENOMEM;
         }
+      user = user_copy;
     }
 
   /* no new values as argument provided, ask for them */

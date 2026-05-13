@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -38,13 +39,15 @@ static inline void freep(void *p) {
 }
 
 static inline void closep(int *fd) {
-  if (*fd)
+  if (*fd >= 0)
         close(*fd);
+  *fd = -EBADF;
 }
 
 static inline void fclosep(FILE **f) {
   if (*f)
         fclose(*f);
+  *f = NULL;
 }
 
 #define _cleanup_(x) __attribute__((__cleanup__(x)))

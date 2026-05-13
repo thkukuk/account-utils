@@ -333,7 +333,7 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
 
       if (e.upper < 0 || e.upper > UID_MAX ||
 	  e.lower < 0 || e.lower > UID_MAX ||
-	  e.count < 1 || e.count >= (UID_MAX - e.upper))
+	  e.count < 1 || e.count > (UID_MAX - e.upper))
 	{
 	  log_msg(LOG_ERR, "Invalid map_ranges upper=%" PRIi64 ", lower=%" PRIi64 ", count=%" PRIi64,
 		  e.upper, e.lower, e.count);

@@ -104,7 +104,7 @@ mbstowcs_alloc (const char *string, wchar_t **ret)
   if (buf == NULL)
     return -ENOMEM;
 
-  size = mbstowcs(buf, string, size);
+  size = mbstowcs(buf, string, size + 1);
   if (size == (size_t) -1)
     return -EINVAL;
 

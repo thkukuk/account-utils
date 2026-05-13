@@ -637,6 +637,7 @@ main(int argc, char **argv)
             *ptr = 0;
           conv.conv = stdin_conv;
           conv.appdata_ptr = strdup(password);
+	  explicit_bzero(password, sizeof(password));
 	  if (conv.appdata_ptr == NULL)
 	    return oom();
 	}
