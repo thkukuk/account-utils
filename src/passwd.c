@@ -78,9 +78,9 @@ date2str(time_t date)
   struct tm tm;
 
   if (date < 0)
-    strcpy(buf, "never");
+    strlcpy(buf, "never", sizeof(buf));
  else if (!gmtime_r(&date, &tm))
-   strcpy(buf, "future");
+   strlcpy(buf, "future", sizeof(buf));
  else
    strftime(buf, sizeof(buf), "%Y-%m-%d", &tm);
 

@@ -73,7 +73,7 @@ static void
 format_date_buf(char *buf, size_t buf_size, long date_val)
 {
   if (date_val == -1)
-    strcpy(buf, "-1");
+    strlcpy(buf, "-1", buf_size);
   else
     {
       _cleanup_free_ char *p = date2str(date_val * SCALE);
