@@ -419,15 +419,6 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
       return -EPERM;
     }
 
-  errno = 0; /* to find out if getpwnam succeed and there is no entry or if there was an error */
-  pw = getpwnam(p.name);
-  if (pw == NULL)
-    {
-      r = error_user_not_found(link, -1, p.name);
-      parameters_free(&p);
-      return r;
-    }
-
   r = sd_varlink_get_peer_uid(link, &peer_uid);
   if (r < 0)
     return return_errno_error(link, "Get peer UID", r);
@@ -446,6 +437,15 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
       return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InvalidParameter",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "No user name specified"));
+    }
+
+  errno = 0; /* to find out if getpwnam succeed and there is no entry or if there was an error */
+  pw = getpwnam(p.name);
+  if (pw == NULL)
+    {
+      r = error_user_not_found(link, -1, p.name);
+      parameters_free(&p);
+      return r;
     }
 
   /* Don't change GECOS if query does not come from root
