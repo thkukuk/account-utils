@@ -419,10 +419,6 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
       return -EPERM;
     }
 
-  r = sd_varlink_get_peer_uid(link, &peer_uid);
-  if (r < 0)
-    return return_errno_error(link, "Get peer UID", r);
-
   r = sd_varlink_dispatch(p.link, parameters, dispatch_table, &p);
   if (r < 0)
     {
@@ -447,6 +443,10 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
       parameters_free(&p);
       return r;
     }
+
+  r = sd_varlink_get_peer_uid(link, &peer_uid);
+  if (r < 0)
+    return return_errno_error(link, "Get peer UID", r);
 
   /* Don't change GECOS if query does not come from root
      and result is not the one of the calling user */
