@@ -112,7 +112,7 @@ main(int argc, char **argv)
   const char *old_work_phone = NULL;
   const char *user = NULL;
   _cleanup_free_ char *error = NULL;
-  struct pam_response *resp = NULL;
+  struct callback_data cb_data = { .resp = NULL, .error_code = 0 };
   int r;
 
   setlocale(LC_ALL, "");
@@ -280,7 +280,7 @@ main(int argc, char **argv)
 
       return -r;
     }
-  sd_varlink_set_userdata(link, &resp);
+  sd_varlink_set_userdata(link, &cb_data);
 
   r = sd_json_variant_merge_objectbo(&params,
 				     SD_JSON_BUILD_PAIR_STRING("userName", user));
@@ -348,20 +348,30 @@ main(int argc, char **argv)
 	}
     }
 
-  if (resp)
+  /* Check if an error occurred in the callback */
+  if (cb_data.error_code != 0)
+    {
+      if (cb_data.error_code == ENODATA)
+	fprintf(stderr, "chfn: user '%s' does not exist\n", user);
+      else
+	fprintf(stderr, "chfn: %s\n", strerror(cb_data.error_code));
+      return cb_data.error_code;
+    }
+
+  if (cb_data.resp)
     {
       _cleanup_(sd_json_variant_unrefp) sd_json_variant *answer = NULL;
 
       r = sd_json_buildo(&answer,
-			 SD_JSON_BUILD_PAIR("response", SD_JSON_BUILD_STRING(strempty(resp->resp))));
+			 SD_JSON_BUILD_PAIR("response", SD_JSON_BUILD_STRING(strempty(cb_data.resp->resp))));
       if (r < 0)
 	{
 	  fprintf(stderr, "Failed to build response list: %s\n", strerror(-r));
 	  return -r;
 	}
 
-      free(resp->resp);
-      resp = mfree(resp);
+      free(cb_data.resp->resp);
+      cb_data.resp = mfree(cb_data.resp);
 
       sd_json_variant_sensitive(answer); /* password is sensitive */
 
@@ -374,5 +384,5 @@ main(int argc, char **argv)
       goto loop;
     }
 
-  return 0;
+  return cb_data.error_code;
 }

@@ -72,7 +72,8 @@ reply_callback(sd_varlink *link _unused_,
 	       sd_varlink_reply_flags_t flags _unused_,
 	       void *userdata)
 {
-  struct pam_response **resp = userdata;
+  struct callback_data *cb_data = userdata;
+  struct pam_response **resp = &cb_data->resp;
   _cleanup_(pam_message_free) struct pam_message pmsg = {
     .msg_style = -1,
     .msg = NULL
@@ -104,15 +105,33 @@ reply_callback(sd_varlink *link _unused_,
 	  fprintf(stderr, "Failed to parse JSON answer (result) for error '%s': %s\n", error, strerror(-r));
 	  return r;
 	}
+
+      /* XXX Don't print error here, let the caller print it */
       if (p.success || !p.error) /* Oops, something did go wrong */
 	fprintf(stderr, "Method call failed: %s\n", error);
       else
 	fprintf(stderr, "%s\n", p.error);
 
-      /* If we can translate this to an errno, let's print that as errno
-	 and return it, otherwise, return a generic error code. */
-      r = sd_varlink_error_to_errno(error, parameters);
-      return r;
+      if (startswith(error, "org.openSUSE."))
+	{
+	  /* We need to our own errors ourself */
+	  if (streq(error, "org.openSUSE.pwaccess.NoEntryFound") ||
+	      streq(error, "org.openSUSE.pwupd.NoEntryFound"))
+	    r = -ENODATA;
+	  /* XXX more error codes */
+	  else
+	    r = -EBADR;
+	}
+      else
+	{
+	  /* If we can translate this to an errno, let's print that as errno
+	     and return it, otherwise, return a generic error code. */
+	  r = sd_varlink_error_to_errno(error, parameters);
+	}
+      /* Store error code for caller to handle */
+      cb_data->error_code = -r;
+
+      return 0;  /* Don't abort the connection, let caller check error_code */
     }
 
   //sd_json_variant_dump(parameters, SD_JSON_FORMAT_NEWLINE, stdout, NULL);

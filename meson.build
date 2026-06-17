@@ -199,7 +199,7 @@ executable('chfn', 'src/chfn.c',
            install : true)
 executable('chsh', 'src/chsh.c',
            include_directories : inc,
-           link_with : [libclient, libpwaccess],
+           link_with : [libclient, libcommon, libpwaccess],
            dependencies : [libsystemd, libpam, libpam_misc, libeconf],
            install : true)
 executable('passwd', 'src/passwd.c',
@@ -209,7 +209,7 @@ executable('passwd', 'src/passwd.c',
            install : true)
 executable('expiry', 'src/expiry.c',
            include_directories : inc,
-           link_with : [libclient, libpwaccess],
+           link_with : [libclient, libcommon, libpwaccess],
            dependencies : [libsystemd, libpam, libpam_misc],
            install : true)
 
