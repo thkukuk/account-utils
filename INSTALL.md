@@ -13,5 +13,6 @@ $ meson test -C build
 $ sudo meson install -C build
 ```
 
-If you want to build with the address sanitizer enabled, add
-`-Db_sanitize=address` as an argument to `meson setup`.
+On openSUSE or SUSE Linux Enterprise, you should add `-Ddistribution=suse` to get adjusted PAM configuration files.
+
+If you want to build with the address sanitizer enabled, add `-Db_sanitize=address` as an argument to `meson setup`.
