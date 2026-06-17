@@ -505,7 +505,7 @@ main(int argc, char **argv)
           {NULL,          0,                 NULL, '\0'}
         };
 
-      c = getopt_long(argc, argv, "dehI:klm:M:qSuvw:",
+      c = getopt_long(argc, argv, "dehI:klm:M:qsSuvw:",
 		      long_options, &option_index);
       if (c == (-1))
         break;
