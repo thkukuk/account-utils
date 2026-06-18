@@ -4,6 +4,12 @@ Copyright (C) 2025, 2026 Thorsten Kukuk <kukuk@suse.com>.
 
 Please enter bug reports at https://github.com/thkukuk/account-utils/issues
 
+Version 1.3.0
+* meson: try to autodetect distribution
+* CI: add a systemd-nspawn container test suite
+* chfn/chsh/passwd: don't return 0 in error case
+* pwupdd: fix crash in Chfn method (#25)
+
 Version 1.2.0
 * Several small fixes
 
