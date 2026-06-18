@@ -17,8 +17,29 @@ project(
 
 distribution = get_option('distribution')
 if distribution == ''
-  distribution = 'example'
+  fs = import('fs')
+  # Auto-detect distribution from /etc/os-release
+  osrelease = '/etc/os-release'
+  if fs.is_file(osrelease)
+    osrelease_content = run_command('sh', '-c',
+      'grep "^ID=" ' + osrelease + ' | cut -d= -f2 | tr -d \'"\'',
+      check: false)
+    if osrelease_content.returncode() == 0
+      detected_id = osrelease_content.stdout().strip()
+      if detected_id == 'opensuse' or detected_id == 'opensuse-leap' or detected_id == 'opensuse-tumbleweed' or detected_id == 'opensuse-microos' or detected_id == 'sles'
+        distribution = 'suse'
+      else
+        distribution = 'example'
+      endif
+    else
+      distribution = 'example'
+    endif
+  else
+    distribution = 'example'
+  endif
 endif
+
+message('Distribution: ' + distribution)
 
 conf = configuration_data()
 conf.set_quoted('VERSION', meson.project_version())
