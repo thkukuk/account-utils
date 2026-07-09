@@ -11,4 +11,4 @@ struct config_t {
 };
 
 extern struct config_t *struct_config_free(struct config_t *cfg);
-extern econf_err read_config(struct config_t *cfg);
+extern econf_err read_config(const char *name, struct config_t *cfg);

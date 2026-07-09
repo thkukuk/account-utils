@@ -28,7 +28,7 @@ main(int argc _unused_, char **argv _unused_)
 {
   _cleanup_(struct_config_free) struct config_t cfg = {NULL, NULL, NULL};
 
-  econf_err error = read_config(&cfg);
+  econf_err error = read_config("pwaccessd", &cfg);
 
   if (error != ECONF_SUCCESS)
     {

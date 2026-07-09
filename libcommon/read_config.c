@@ -151,7 +151,7 @@ lookup_group(econf_file *key_file, const char *group, uid_t **list)
 
 /* we will read everything and only report the firstx error */
 econf_err
-read_config(struct config_t *cfg)
+read_config(const char *name, struct config_t *cfg)
 {
   _cleanup_(econf_freeFilep) econf_file *key_file = NULL;
   econf_err error;
@@ -168,7 +168,7 @@ read_config(struct config_t *cfg)
   error = econf_readConfig(&key_file,
 			   "account-utils", /* project name */
 			   "/usr/share",    /* directory below /usr */
-			   "pwaccessd",     /* file name without extension */
+			   name,            /* file name without extension */
 			   "conf",          /* suffix */
 			   "=",             /* delimiter */
 			   "#");            /* comment */

@@ -716,7 +716,7 @@ main(int argc, char **argv)
 {
   int socket_activation = false;
   _cleanup_(struct_context_free) struct context_t ctx = { {NULL, NULL, NULL}, NULL };
-  econf_err error = read_config(&ctx.cfg);
+  econf_err error = read_config("pwaccessd", &ctx.cfg);
 
   if (error != ECONF_SUCCESS)
     log_msg(LOG_NOTICE, "Error reading config file: %s",
