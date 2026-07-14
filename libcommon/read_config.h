@@ -8,6 +8,7 @@ struct config_t {
   uid_t *allow_get_user_record;
   uid_t *allow_verify_password;
   uid_t *allow_expired_check;
+  bool use_sp_min;
 };
 
 extern struct config_t *struct_config_free(struct config_t *cfg);

@@ -85,7 +85,30 @@ parse_token(const char *token, uid_t *result_uid)
 }
 
 static econf_err
-lookup_group(econf_file *key_file, const char *group, uid_t **list)
+lookup_bool(econf_file *key_file, const char *group, bool *flag)
+{
+  bool value;
+  econf_err error;
+
+  /* look at first in method specific group */
+  error = econf_getBoolValue(key_file, group, "SpMin", &value);
+  if (error == ECONF_NOKEY || error == ECONF_NOGROUP)
+    /* Fallback if key not found */
+    error = econf_getBoolValue(key_file, "global", "SpMin", &value);
+  if (error == ECONF_NOKEY || error == ECONF_NOGROUP)
+    /* no data, done */
+    return ECONF_SUCCESS;
+  /* error out in other cases */
+  if (error != ECONF_SUCCESS)
+    return error;
+
+  *flag = value;
+
+  return ECONF_SUCCESS;
+}
+
+static econf_err
+lookup_uid_list(econf_file *key_file, const char *group, uid_t **list)
 {
   _cleanup_free_ char *value = NULL;
   _cleanup_free_ uid_t *uids = NULL;
@@ -177,13 +200,16 @@ read_config(const char *name, struct config_t *cfg)
 
   /* XXX read debug_level from [global] and set max_log_level */
 
-  error = lookup_group(key_file, "GetUserRecord", &(cfg->allow_get_user_record));
+  error = lookup_uid_list(key_file, "GetUserRecord", &(cfg->allow_get_user_record));
   if (error && !retval)
     retval = error;
-  error = lookup_group(key_file, "VerifyPassword", &(cfg->allow_verify_password));
+  error = lookup_uid_list(key_file, "VerifyPassword", &(cfg->allow_verify_password));
   if (error && !retval)
     retval = error;
-  error = lookup_group(key_file, "ExpiredCheck", &(cfg->allow_expired_check));
+  error = lookup_uid_list(key_file, "ExpiredCheck", &(cfg->allow_expired_check));
+  if (error && !retval)
+    return error;
+  error = lookup_bool(key_file, "ExpiredCheck", &(cfg->use_sp_min));
   if (error && !retval)
     return error;
 
