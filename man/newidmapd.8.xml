@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="newidmapd" xml:lang="en">
+  <refmeta>
+    <refentrytitle>newidmapd</refentrytitle>
+    <manvolnum>8</manvolnum>
+    <refmiscinfo class="source">account-utils %version%</refmiscinfo>
+    <refmiscinfo class="manual">newidmapd</refmiscinfo>
+  </refmeta>
+
+  <refnamediv>
+    <refname>newidmapd</refname>
+    <refname>newidmapd.service</refname>
+    <refname>newidmapd.socket</refname>
+    <refpurpose>daemon to set UID and GID mappings for user namespaces</refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <cmdsynopsis>
+      <command>newidmapd.service</command>
+    </cmdsynopsis>
+    <cmdsynopsis>
+      <command>newidmapd.socket</command>
+    </cmdsynopsis>
+    <cmdsynopsis>
+      <command>/usr/libexec/newidmapd</command>
+      <arg choice="opt" rep="repeat">OPTIONS</arg>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>Description</title>
+    <para>
+      <command>newidmapd</command> is a
+      <citerefentry><refentrytitle>systemd</refentrytitle><manvolnum>1</manvolnum></citerefentry>
+      socket-activated service that performs the privileged write of UID and GID
+      mappings into a process's user namespace on behalf of unprivileged callers.
+    </para>
+    <para>
+      Writing to <filename>/proc/<replaceable>pid</replaceable>/uid_map</filename>
+      and <filename>/proc/<replaceable>pid</replaceable>/gid_map</filename> normally
+      requires elevated privileges.  <command>newidmapd</command> accepts requests
+      over a Varlink socket, validates them, and writes the mappings itself, so that
+      tools such as
+      <citerefentry><refentrytitle>newuidmap</refentrytitle><manvolnum>1</manvolnum></citerefentry>
+      and
+      <citerefentry><refentrytitle>newgidmap</refentrytitle><manvolnum>1</manvolnum></citerefentry>
+      need no setuid bit.
+    </para>
+    <para>
+      Before writing any mapping, <command>newidmapd</command> verifies that:
+    </para>
+    <itemizedlist>
+      <listitem>
+        <para>
+          The calling process owns the target process (the
+          <filename>/proc/<replaceable>pid</replaceable></filename> directory is
+          owned by the caller's UID and GID).
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          Every requested subordinate ID range is listed for the caller in
+          <filename>/etc/subuid</filename> (for UID mappings) or
+          <filename>/etc/subgid</filename> (for GID mappings).
+          A process is always allowed to map its own UID or GID.
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          The number of mapping entries does not exceed the kernel limit of 340
+          ranges (enforced since Linux 4.16).
+        </para>
+      </listitem>
+    </itemizedlist>
+    <para>
+      When launched by
+      <citerefentry><refentrytitle>systemd</refentrytitle><manvolnum>1</manvolnum></citerefentry>
+      via socket activation, the daemon exits automatically after 30 seconds of
+      inactivity.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Options</title>
+    <variablelist>
+      <varlistentry>
+        <term><option>-s</option></term>
+        <term><option>--socket</option></term>
+        <listitem>
+          <para>
+            Enable socket activation mode.  In this mode the daemon inherits the
+            listening socket from systemd and exits automatically after 30 seconds
+            of idle time.  This is the standard mode when running under systemd.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>-d</option></term>
+        <term><option>--debug</option></term>
+        <listitem>
+          <para>Enable debug mode (maximum log verbosity).</para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>-v</option></term>
+        <term><option>--verbose</option></term>
+        <listitem>
+          <para>Enable verbose logging.</para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>-?</option></term>
+        <term><option>--help</option></term>
+        <listitem>
+          <para>Give the help list.</para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--version</option></term>
+        <listitem>
+          <para>Print program version.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Varlink Interface</title>
+    <para>
+      <command>newidmapd</command> exposes the interface
+      <literal>org.openSUSE.newidmapd</literal> over the Varlink socket
+      <filename>/run/account/newidmapd-socket</filename>.
+      The interface provides the following methods:
+    </para>
+    <variablelist>
+      <varlistentry>
+        <term><function>WriteMappings</function></term>
+        <listitem>
+          <para>
+            Writes UID or GID mappings for the user namespace of a given process.
+            The caller must own the target process.  The requested ranges are
+            validated against <filename>/etc/subuid</filename> or
+            <filename>/etc/subgid</filename> as appropriate.
+          </para>
+          <para>
+            Input fields:
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>PID</varname> (int)</term>
+              <listitem>
+                <para>Process ID of the target process whose namespace mapping is to be written.</para>
+              </listitem>
+            </varlistentry>
+            <varlistentry>
+              <term><varname>Map</varname> (string)</term>
+              <listitem>
+                <para>
+                  Which mapping file to write.  Must be either
+                  <literal>uid_map</literal> or <literal>gid_map</literal>.
+                </para>
+              </listitem>
+            </varlistentry>
+            <varlistentry>
+              <term><varname>MapRanges</varname> (array of MapRange)</term>
+              <listitem>
+                <para>
+                  Array of mapping entries.  Each entry is a
+                  <structname>MapRange</structname> object with three integer
+                  fields: <varname>upper</varname> (first ID inside the
+                  namespace), <varname>lower</varname> (first ID outside the
+                  namespace), and <varname>count</varname> (length of the
+                  range).  At most 340 entries are accepted.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+          <para>
+            Output fields:
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>Success</varname> (bool)</term>
+              <listitem><para>Whether the operation succeeded.</para></listitem>
+            </varlistentry>
+            <varlistentry>
+              <term><varname>ErrorMsg</varname> (string, optional)</term>
+              <listitem><para>Human-readable error description on failure.</para></listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><function>Ping</function></term>
+        <listitem>
+          <para>
+            Returns <literal>Alive=true</literal> if the service is running.
+            Useful to check that the daemon is reachable before issuing other
+            calls.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><function>Quit</function></term>
+        <listitem>
+          <para>
+            Requests the daemon to stop.  An optional integer
+            <varname>ExitCode</varname> can be supplied; it will be used as the
+            process exit status.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><function>SetLogLevel</function></term>
+        <listitem>
+          <para>
+            Adjusts the maximum log level at runtime.  The
+            <varname>Level</varname> field uses BSD syslog integer values
+            (0 = emergency … 7 = debug).
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><function>GetEnvironment</function></term>
+        <listitem>
+          <para>
+            Returns the daemon's current environment block as an array of
+            strings in <literal>KEY=VALUE</literal> form.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      The interface defines the following error types:
+    </para>
+    <variablelist>
+      <varlistentry>
+        <term><errorname>org.openSUSE.newidmapd.PermissionDenied</errorname></term>
+        <listitem>
+          <para>
+            The caller does not own the target process, or the requested mapping
+            ranges are not permitted by the subordinate ID configuration.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><errorname>org.openSUSE.newidmapd.InvalidParameter</errorname></term>
+        <listitem>
+          <para>
+            A required parameter was missing, out of range, or otherwise invalid.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><errorname>org.openSUSE.newidmapd.InternalError</errorname></term>
+        <listitem>
+          <para>
+            An unexpected internal error occurred while processing the request.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Files</title>
+    <variablelist>
+      <varlistentry>
+        <term><filename>/usr/libexec/newidmapd</filename></term>
+        <listitem>
+          <para>The daemon binary.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><filename>/run/account/newidmapd-socket</filename></term>
+        <listitem>
+          <para>
+            Varlink socket used to communicate with the daemon.
+            Created with mode 0666 so any local user can connect.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><filename>/etc/subuid</filename></term>
+        <listitem>
+          <para>
+            Defines the subordinate UID ranges allocated to each user.
+            Consulted when validating <literal>uid_map</literal> requests.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><filename>/etc/subgid</filename></term>
+        <listitem>
+          <para>
+            Defines the subordinate GID ranges allocated to each user.
+            Consulted when validating <literal>gid_map</literal> requests.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><filename>/proc/<replaceable>pid</replaceable>/uid_map</filename></term>
+        <listitem>
+          <para>Kernel file written to apply UID mappings to a user namespace.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><filename>/proc/<replaceable>pid</replaceable>/gid_map</filename></term>
+        <listitem>
+          <para>Kernel file written to apply GID mappings to a user namespace.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <para>
+      <citerefentry><refentrytitle>newuidmap</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>newgidmap</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>subuid</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>subgid</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>user_namespaces</refentrytitle><manvolnum>7</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>systemd</refentrytitle><manvolnum>1</manvolnum></citerefentry>
+    </para>
+  </refsect1>
+
+</refentry>

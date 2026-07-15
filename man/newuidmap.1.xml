@@ -1,0 +1,167 @@
+<refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="newuidmap">
+  <refmeta>
+    <refentrytitle>newuidmap</refentrytitle>
+    <manvolnum>1</manvolnum>
+    <refmiscinfo class="source">account-utils %version%</refmiscinfo>
+    <refmiscinfo class="manual">newuidmap</refmiscinfo>
+  </refmeta>
+
+  <refnamediv>
+    <refname>newuidmap</refname>
+    <refpurpose>set the uid mapping of a user namespace</refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <cmdsynopsis sepchar=" ">
+      <command>newuidmap</command>
+      <arg choice="opt" rep="norepeat">
+        options
+      </arg>
+      <arg choice="plain" rep="norepeat">
+        pid
+      </arg>
+      <arg choice="plain" rep="norepeat">
+        uid
+      </arg>
+      <arg choice="plain" rep="norepeat">
+        loweruid
+      </arg>
+      <arg choice="plain" rep="norepeat">
+        count
+      </arg>
+      <arg choice="opt" rep="repeat">
+        uid loweruid count
+      </arg>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>DESCRIPTION</title>
+    <para>
+      The <command>newuidmap</command> command sets the uid mapping of the
+      user namespace of the process <option>pid</option> by writing to
+      <filename>/proc/<replaceable>pid</replaceable>/uid_map</filename>,
+      using the ranges given on the command line.
+    </para>
+    <para>
+      This implementation delegates the task via the varlink protocol to
+      <citerefentry>
+        <refentrytitle>newidmapd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>, which performs the privileged operation on its
+      behalf.
+    </para>
+    <para>
+      After the <option>pid</option> argument, the command expects one or
+      more sets of three integers:
+    </para>
+    <variablelist>
+      <varlistentry>
+        <term><option>uid</option></term>
+        <listitem>
+          <para>
+            Beginning of the range of UIDs inside the user namespace.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>loweruid</option></term>
+        <listitem>
+          <para>
+            Beginning of the range of UIDs outside the user namespace.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>count</option></term>
+        <listitem>
+          <para>
+            Length of the ranges (both inside and outside the user
+            namespace).
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+    <para>
+      The mappings are only applied if the caller is the owner of the
+      process <option>pid</option> and every UID in the requested range
+      <option>loweruid</option> to <option>loweruid</option>+<option>count</option>
+      is allowed for the caller according to
+      <citerefentry>
+        <refentrytitle>subuid</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>. A process is always allowed to map its own UID.
+    </para>
+    <para>
+      <command>newuidmap</command> can only be used once per process, as
+      the kernel allows the uid mapping of a user namespace to be written
+      only a single time.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>OPTIONS</title>
+    <variablelist>
+      <varlistentry>
+        <term>
+          <option>-h, --help</option>
+        </term>
+        <listitem>
+          <para>
+            Print a usage message and exit.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-v, --version</option>
+        </term>
+        <listitem>
+          <para>
+            Print the program version and exit.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>FILES</title>
+    <variablelist>
+      <varlistentry>
+        <term>/etc/subuid</term>
+        <listitem>
+          <para>List of the user's subordinate user IDs.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+    <variablelist>
+      <varlistentry>
+        <term>/proc/[pid]/uid_map</term>
+        <listitem>
+          <para>Mapping of UIDs between user namespaces.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>SEE ALSO</title>
+    <para>
+      <citerefentry>
+        <refentrytitle>newgidmap</refentrytitle><manvolnum>1</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>newidmapd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>subuid</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>subgid</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>user_namespaces</refentrytitle><manvolnum>7</manvolnum>
+      </citerefentry>
+    </para>
+  </refsect1>
+
+</refentry>
