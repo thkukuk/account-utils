@@ -155,11 +155,8 @@ print_shadow_info (const char *user, struct spwd *sp, bool iso8601)
   else
     print_date(sp->sp_expire * SCALE, iso8601);
 
-  printf("Minimum password age:\t\t");
-  if (sp->sp_min <= 0)
-    printf("disabled\n");
-  else
-    printf("%ld days\n", sp->sp_min);
+  if (sp->sp_min > 0) // shadow 4.20 disabled sp_min
+    printf("Minimum password age:\t\t%ld days\n", sp->sp_min);
   printf("Maximum password age:\t\t");
   if (sp->sp_max <= 0)
     printf("disabled\n");
@@ -297,7 +294,6 @@ print_help(void)
   fputs("  -i, --iso8601            Print dates as YYYY-MM-DD\n", stdout);
   fputs("  -I, --inactive <days>    Lock expired account after inactive days\n", stdout);
   fputs("  -l, --list               List account aging information\n", stdout);
-  fputs("  -m, --mindays <days>     Minimum # of days before password can be changed\n", stdout);
   fputs("  -M, --maxdays <days>     Maximum # of days before password can be canged\n", stdout);
   fputs("  -h, --help               Give this help list\n", stdout);
   fputs("  -v, --version            Print program version\n", stdout);
@@ -372,6 +368,7 @@ main(int argc, char **argv)
 	  maxdays = optarg;
 	  break;
 	case 'm':
+	  fputs("The --mindays option is deprecated and will be removed in the future.\n", stderr);
 	  mindays = optarg;
 	  break;
 	case 'W':
@@ -481,10 +478,13 @@ main(int argc, char **argv)
     {
       char buf[80];
 
-      snprintf(buf, sizeof(buf), "%ld", sp->sp_min);
-      r = prompt_and_check(buf, "Minimum password age", &mindays);
-      if (r != 0)
-	return r;
+      if (sp->sp_min > 0) // only ask if sp_min is set
+	{
+	  snprintf(buf, sizeof(buf), "%ld", sp->sp_min);
+	  r = prompt_and_check(buf, "Minimum password age", &mindays);
+	  if (r != 0)
+	    return r;
+	}
 
       snprintf(buf, sizeof(buf), "%ld", sp->sp_max);
       r = prompt_and_check(buf, "Maximum password age", &maxdays);
