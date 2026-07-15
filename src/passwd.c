@@ -52,7 +52,6 @@ print_help(void)
   fputs("  -I, --inactive <days>  Lock expired account after inactive days\n", stdout);
   fputs("  -k, --keep-tokens      Change only expired passwords\n", stdout);
   fputs("  -l, --lock             Lock password\n", stdout);
-  fputs("  -m, --mindays <days>   Minimum # of days before password can be changed\n", stdout);
   fputs("  -M, --maxdays <days>   Maximum # of days before password can be canged\n", stdout);
   fputs("  -q, --quiet            Be silent\n", stdout);
   fputs("  -s, --stdin            Read new password from stdin\n", stdout);
@@ -107,7 +106,7 @@ print_account_status(const struct passwd *pw, const struct spwd *sp)
 	   pw->pw_name,
 	   pw_status(sp->sp_pwdp),
 	   date2str(sp->sp_lstchg * SCALE),
-	   sp->sp_min,
+	   sp->sp_min, // print always the real sp_min, so that output matches behavior of e.g. PAM modules
 	   sp->sp_max,
 	   sp->sp_warn,
 	   sp->sp_inact);
@@ -530,6 +529,7 @@ main(int argc, char **argv)
 	  args |= ARG_LOCK_PASSWORD;
 	  break;
 	case 'm':
+	  fputs("The --mindays option is deprecated and will be removed in the future.\n", stderr);
 	  mindays = optarg;
 	  break;
 	case 'M':

@@ -122,20 +122,6 @@
       </varlistentry>
       <varlistentry>
         <term>
-          <option>-m, --mindays</option> <replaceable>#days</replaceable>
-        </term>
-        <listitem>
-          <para>
-            With this option the minimum number of days between password
-            changes is changed. A value of zero for this field indicates
-            that the user may change her password at any time. Else the
-            user will not be permitted to change the password until
-            minimum number of days have elapsed.
-          </para>
-        </listitem>
-      </varlistentry>
-      <varlistentry>
-        <term>
           <option>-M, --maxdays</option> <replaceable>#days</replaceable>
         </term>
         <listitem>
@@ -222,6 +208,13 @@
         </listitem>
       </varlistentry>
     </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>NOTES</title>
+    <para>
+      The Minimum Password Age field in the <citerefentry><refentrytitle>shadow</refentrytitle><manvolnum>5</manvolnum></citerefentry> file is no longer supported for security reasons. This field sets a minimum validity period for a password before it can be changed, which creates a security risk in the event of a password leak. The field can only be modified if it is set; in that case, it should be cleared.
+    </para>
   </refsect1>
 
   <refsect1>
