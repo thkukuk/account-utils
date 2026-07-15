@@ -197,7 +197,7 @@ unix_chauthtok_prelim_check(pam_handle_t *pamh, int flags,
       return PAM_SUCCESS;
     }
 
-  r = expired_check(sp, NULL, &pwchangeable);
+  r = expired_check(sp, false /* use_sp_min */, NULL, &pwchangeable);
   if (!pwchangeable && !i_am_root)
     {
       pam_error(pamh, "You must wait longer to change your password.");

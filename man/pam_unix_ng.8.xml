@@ -229,17 +229,37 @@
   </refsect1>
 
   <refsect1>
+    <title>NOTES</title>
+    <para>
+      The <citerefentry><refentrytitle>shadow</refentrytitle><manvolnum>5</manvolnum></citerefentry> Minimum Password Age field (sp_min) get's ignored if <command>pam_unix_ng.so</command> cannot connect with
+      <citerefentry>
+	<refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>.
+    </para>
+  </refsect1>
+
+  <refsect1>
     <title>EXAMPLES</title>
     <para>
-      Add the following line to e.g. <filename>/etc/pam.d/login</filename> to
-      log when a user logs in and out to
+      An example for a full <filename>/etc/pam.d/login</filename>:
+      <programlisting>
+	account   required   pam_unix_ng.so
+	auth      required   pam_unix_ng.so
+	password  requisite  pam_pwquality.so
+	password  requisite  pam_pwhistory.so use_authtok
+	password  required   pam_unix_ng.so   use_authtok
+	session   optional   pam_wtmpdb.so
+	session   optional   pam_lastlog2.so
+	session   required   pam_unix_ng.so
+      </programlisting>
+      In this case
       <citerefentry>
-        <refentrytitle>syslog</refentrytitle><manvolnum>8</manvolnum>
-      </citerefentry>:
+	<refentrytitle>login</refentrytitle><manvolnum>1</manvolnum>
+      </citerefentry> verifies the password and that the account is not expired, logs login and logout time to
+      <citerefentry>
+	<refentrytitle>syslog</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry> and makes sure, that the password has some kind of quality and the last 10 passwords cannot be reused.
     </para>
-    <programlisting>
-      session  required  pam_unix_ng.so
-    </programlisting>
   </refsect1>
 
   <refsect1>

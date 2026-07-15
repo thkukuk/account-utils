@@ -63,7 +63,8 @@ is_shadow(const struct passwd *pw)
 }
 
 int
-expired_check(const struct spwd *sp, long *daysleft, bool *pwchangeable)
+expired_check(const struct spwd *sp, bool use_sp_min,
+	      long *daysleft, bool *pwchangeable)
 {
   long int now, passed;
 
@@ -124,9 +125,12 @@ expired_check(const struct spwd *sp, long *daysleft, bool *pwchangeable)
 	}
     }
 
-  if (sp->sp_min > 0 && passed < sp->sp_min && pwchangeable)
-    /* The last password change was too recent. */
-    *pwchangeable = false;
+  if (use_sp_min)
+    {
+      if (sp->sp_min > 0 && passed < sp->sp_min && pwchangeable)
+	/* The last password change was too recent. */
+	*pwchangeable = false;
+    }
 
   return PWA_EXPIRED_NO;
 }

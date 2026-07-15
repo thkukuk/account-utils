@@ -20,6 +20,7 @@ struct config_t
   int minlen;           /* minimal length of new password */
   const char *crypt_prefix;  /* see man crypt(5) */
   unsigned long crypt_count; /* see man crypt(5) */
+  bool use_sp_min;           /* Ignore shadow->sp_min by default */
 };
 
 extern int parse_args(pam_handle_t *pamh, int flags, int argc,

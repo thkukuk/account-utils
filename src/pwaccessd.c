@@ -514,7 +514,7 @@ vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_INTEGER("Expired", PWA_EXPIRED_NO));
     }
 
-  r = expired_check(sp, &daysleft, &pwchangeable);
+  r = expired_check(sp, ctx->cfg.use_sp_min, &daysleft, &pwchangeable);
   if (r < 0)
     {
       _cleanup_free_ char *error = NULL;
@@ -715,7 +715,7 @@ int
 main(int argc, char **argv)
 {
   int socket_activation = false;
-  _cleanup_(struct_context_free) struct context_t ctx = { {NULL, NULL, NULL}, NULL };
+  _cleanup_(struct_context_free) struct context_t ctx = {0};
   econf_err error = read_config("pwaccessd", &ctx.cfg);
 
   if (error != ECONF_SUCCESS)

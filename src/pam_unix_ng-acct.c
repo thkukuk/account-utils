@@ -79,7 +79,8 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
 		    r = PWA_EXPIRED_NO;
 		}
 	      else
-		r = expired_check(sp, &daysleft, NULL /* pwchangeable */);
+		r = expired_check(sp, false /* use_sp_min */,
+				  &daysleft, NULL /* pwchangeable */);
 	    }
 	}
       else
