@@ -12,6 +12,7 @@ custom_man_xsl = files('custom-man.xsl')
 xslt_cmd = [xsltproc_exe, '-o', '@OUTPUT0@'] + xsltproc_flags
 
 mandir1 = get_option('mandir') / 'man1'
+mandir5 = get_option('mandir') / 'man5'
 mandir8 = get_option('mandir') / 'man8'
 
 if xsltproc_exe.found()
@@ -45,6 +46,12 @@ custom_target('passwd.1',
               command : xslt_cmd + [custom_man_xsl, '@INPUT@'],
               install : want_man,
               install_dir : mandir1)
+custom_target('pwaccessd.conf.5',
+              input : 'pwaccessd.conf.5.xml',
+              output : 'pwaccessd.conf.5',
+              command : xslt_cmd + [custom_man_xsl, '@INPUT@'],
+              install : want_man,
+              install_dir : mandir5)
 custom_target('pam_unix_ng.8',
               input : 'pam_unix_ng.8.xml',
               output : 'pam_unix_ng.8',

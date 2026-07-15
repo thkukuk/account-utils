@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<refentry xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.0" xml:id="pwaccessd.conf">
+  <refmeta>
+    <refentrytitle>pwaccessd.conf</refentrytitle>
+    <manvolnum>5</manvolnum>
+    <refmiscinfo class="source">account-utils %version%</refmiscinfo>
+    <refmiscinfo class="manual">pwaccessd.conf</refmiscinfo>
+  </refmeta>
+
+  <refnamediv>
+    <refname>pwaccessd.conf</refname>
+    <refpurpose>configuration file for pwaccessd</refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <para>
+      <filename>/etc/account-utils/pwaccessd.conf</filename>
+    </para>
+    <para>
+      <filename>/etc/account-utils/pwaccessd.conf.d/*.conf</filename>
+    </para>
+    <para>
+      <filename>/usr/share/account-utils/pwaccessd.conf</filename>
+    </para>
+    <para>
+      <filename>/usr/share/account-utils/pwaccessd.conf.d/*.conf</filename>
+    </para>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>Description</title>
+    <para>
+      <filename>pwaccessd.conf</filename> configures
+      <citerefentry><refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+      the service which provides <structname>passwd</structname> and
+      <structname>shadow</structname> information and which verifies passwords
+      and checks account expiration.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Configuration Directories and Precedence</title>
+    <para>
+      The configuration is read following the
+      <link xlink:href="https://uapi-group.org/specifications/specs/configuration_files_specification/">UAPI
+      Configuration Files Specification</link>. The main configuration file
+      <filename>pwaccessd.conf</filename> is looked up in the
+      <literal>account-utils</literal> namespace below the following
+      directories, listed here from lowest to highest precedence:
+    </para>
+    <variablelist>
+      <varlistentry>
+        <term><filename>/usr/share/account-utils/</filename></term>
+        <listitem>
+          <para>
+            Vendor defaults shipped by the distribution package. Files here
+            should not be edited by the administrator, as they may be
+            overwritten on package updates.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><filename>/etc/account-utils/</filename></term>
+        <listitem>
+          <para>
+            Local administrator configuration. Settings here take precedence
+            over the vendor defaults and are the recommended place for local
+            changes.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+    <para>
+      In addition to the main configuration file, drop-in files with a
+      <filename>.conf</filename> suffix are read from a
+      <filename>pwaccessd.conf.d/</filename> directory located next to the main
+      file in each of the directories above (for example
+      <filename>/etc/account-utils/pwaccessd.conf.d/</filename> and
+      <filename>/usr/share/account-utils/pwaccessd.conf.d/</filename>).
+    </para>
+    <para>
+      All files are merged into a single configuration.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>File Format</title>
+    <para>
+      The file uses a simple INI-style syntax. It is organized into sections
+      (groups) and
+      <varname>key</varname>=<varname>value</varname> assignments.
+      Everything following a <literal>#</literal> character is treated as a
+      comment and ignored. Leading and trailing whitespace around values are
+      stripped.
+    </para>
+    <para>
+      For each setting <command>pwaccessd</command> first looks in the section
+      that matches the affected operation. If the key is not present there, it
+      falls back to the <literal>[global]</literal> section. This allows one to
+      set a default in <literal>[global]</literal> and override it per
+      operation.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Sections</title>
+    <para>
+      The following sections are recognized. The per-operation sections
+      correspond to the Varlink methods of the same name provided by
+      <citerefentry><refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum></citerefentry>.
+    </para>
+    <variablelist>
+      <varlistentry>
+        <term><literal>[global]</literal></term>
+        <listitem>
+          <para>
+            Default values used as a fallback for all operations when a key is
+            not set in the operation specific section.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><literal>[ExpiredCheck]</literal></term>
+        <listitem>
+          <para>
+            Applies to requests which check whether the password or account of a
+            user has expired.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><literal>[GetUserRecord]</literal></term>
+        <listitem>
+          <para>
+            Applies to requests which return the <structname>passwd</structname>
+            and <structname>shadow</structname> record of an account.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><literal>[VerifyPassword]</literal></term>
+        <listitem>
+          <para>
+            Applies to requests which verify the password of an account.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Variables</title>
+    <variablelist>
+      <varlistentry>
+        <term><varname>allow</varname></term>
+        <listitem>
+          <para>
+            A comma-separated list of users who are granted access to the
+            operation of the enclosing section beyond their own account, in
+            addition to <systemitem class="username">root</systemitem>. Each
+            entry is either a user name or a numeric UID. Whitespace around the
+            entries is ignored.
+          </para>
+          <para>
+            Account names which cannot be resolved to a valid UID are skipped. The
+            UID <literal>0</literal> (<systemitem class="username">root</systemitem>)
+            is always allowed and is therefore ignored if listed explicitly.
+          </para>
+          <para>
+            This key is honored in the <literal>[GetUserRecord]</literal>,
+            <literal>[VerifyPassword]</literal> and
+            <literal>[ExpiredCheck]</literal> sections. If it is not set in the
+            relevant section, the value from the <literal>[global]</literal>
+            section is used. If it is set in neither, only the account owner and
+            <systemitem class="username">root</systemitem> have access.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><varname>SpMin</varname></term>
+        <listitem>
+          <para>
+            A boolean value which controls whether the minimum password age
+            (the <structfield>sp_min</structfield> field of the
+            <citerefentry><refentrytitle>shadow</refentrytitle><manvolnum>5</manvolnum></citerefentry>
+            entry) is taken into account during the expiration check. When
+            enabled, a password that is younger than
+            <structfield>sp_min</structfield> days is reported as not yet
+            changeable.
+          </para>
+          <para>
+            This key is read from the <literal>[ExpiredCheck]</literal> section and, if
+            not set there, from the <literal>[global]</literal> section. If it is
+            set in neither, the built-in default <option>false</option> is used.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Example</title>
+    <example>
+      <title>/etc/account-utils/pwaccessd.conf</title>
+      <programlisting>
+[global]
+# For mariadb:user mysql/mariadb needs to authenticate as database
+# user so that the database user can get access to the database.
+allow = mysql
+
+[VerifyPassword]
+# Only 'auth-service', the user with the UID 471 and may verify
+# passwords, this overrides the value from [global] for this
+# operation
+allow = auth-service, 471
+
+[ExpiredCheck]
+# Use the minimum password age for the expiration check
+SpMin = true
+      </programlisting>
+    </example>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <para>
+      <citerefentry><refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>pam_unix_ng</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>passwd</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>shadow</refentrytitle><manvolnum>5</manvolnum></citerefentry>
+    </para>
+    <para>
+      <link xlink:href="https://uapi-group.org/specifications/specs/configuration_files_specification/">UAPI
+      Configuration Files Specification</link>
+    </para>
+  </refsect1>
+</refentry>
