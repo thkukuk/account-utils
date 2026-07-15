@@ -307,6 +307,7 @@ log_info "Services are ready"
 
 # Run tests
 ALL_TESTS_PASSED=0
+FAILED_SUITES=()
 
 if [ -z "$SPECIFIC_TEST" ]; then
     # Run all tests
@@ -318,6 +319,7 @@ if [ -z "$SPECIFIC_TEST" ]; then
             else
                 log_error "✗ Test suite failed: $(basename "$test_script")"
                 ALL_TESTS_PASSED=1
+                FAILED_SUITES+=("$(basename "$test_script")")
             fi
             echo ""
         fi
@@ -336,6 +338,7 @@ else
     else
         log_error "✗ Test suite failed"
         ALL_TESTS_PASSED=1
+        FAILED_SUITES+=("$SPECIFIC_TEST")
     fi
 fi
 
@@ -349,6 +352,9 @@ if [ $ALL_TESTS_PASSED -eq 0 ]; then
     echo -e "${GREEN}All test suites passed!${NC}"
 else
     echo -e "${RED}Some test suites failed!${NC}"
+    for failed_suite in "${FAILED_SUITES[@]}"; do
+        echo -e "${RED}  ✗ ${failed_suite}${NC}"
+    done
 fi
 
 echo "========================================="
