@@ -50,7 +50,7 @@ test_chage_help() {
     assert_contains "$output" "lastday" "Help includes --lastday option"
     assert_contains "$output" "expiredate" "Help includes --expiredate option"
     assert_contains "$output" "inactive" "Help includes --inactive option"
-    assert_contains "$output" "mindays" "Help includes --mindays option"
+    assert_not_contains "$output" "mindays" "Help includes --mindays option"
     assert_contains "$output" "maxdays" "Help includes --maxdays option"
     assert_contains "$output" "warndays" "Help includes --warndays option"
 }

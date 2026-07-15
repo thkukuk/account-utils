@@ -240,6 +240,25 @@ assert_contains() {
     fi
 }
 
+assert_not_contains() {
+    TESTS_RUN=$((TESTS_RUN + 1))
+    local haystack="$1"
+    local needle="$2"
+    local message="${3:-String should not contain substring}"
+
+    if ! echo "$haystack" | grep -qF -- "$needle"; then
+        log_info "✓ $message"
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        return 0
+    else
+        log_error "✗ $message"
+        log_error "  Should not contain: $needle"
+        log_error "  In: $haystack"
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        return 1
+    fi
+}
+
 # Run a test function
 run_test() {
     local test_name="$1"
