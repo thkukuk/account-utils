@@ -6,6 +6,7 @@
 #include <libeconf.h>
 
 #include "basics.h"
+#include "verify.h"
 #include "read_config.h"
 
 struct config_t *
@@ -43,26 +44,17 @@ trim_whitespace(char *str)
 static int
 parse_token(const char *token, uid_t *result_uid)
 {
+  uid_t uid;
+
   if (isempty(token))
     return -EINVAL;
 
-  /* if the first character is a number, it must be a UID */
-  if (isdigit(token[0]))
-    {
-      char *ep;
-      long long ll;
+  if (!valid_name(token))
+    return -EINVAL;
 
-      errno = 0;
-      ll = strtol(token, &ep, 10);
-      if (errno == ERANGE || ll < 0 || ll > UINT32_MAX ||
-	  token == ep || *ep != '\0')
-	{
-	  if (errno == 0)
-	    return -EINVAL;
-	  else
-	    return -errno;
-	}
-      *result_uid = (uid_t)ll;
+  if (is_uid(token, &uid))
+    {
+      *result_uid = uid;
       return 0;
     }
   else /* Try as username */

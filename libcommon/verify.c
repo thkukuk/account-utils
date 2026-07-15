@@ -11,14 +11,32 @@
 #include "basics.h"
 #include "verify.h"
 
+#define UID_MAX ((uid_t)-1)
+
+bool
+is_uid(const char *str, uid_t *result_uid)
+{
+  char *ep;
+  long long ll;
+
+  if (isempty(str))
+    return false;
+
+  errno = 0;
+  ll = strtoll(str, &ep, 10);
+  if (errno == ERANGE || ll < 0 || ll > UID_MAX ||
+      str == ep || *ep != '\0')
+    return false;
+
+  *result_uid = (uid_t)ll;
+  return true;
+}
+
 bool
 valid_name(const char *name)
 {
   /* This function tests if the name has invalid characters, not if the
      name is really valid.
-
-     User/group names must match BRE regex:
-     [a-zA-Z0-9_.][a-zA-Z0-9_.-]*$\?
 
      Reject every name containing additional characters.
   */
@@ -34,6 +52,7 @@ valid_name(const char *name)
             *name == '_' ||
             *name == '.' ||
             *name == '-' ||
+	    *name == '@' || // used by e.g. sssd
             *name == '$')
           )
         return false;

@@ -11,6 +11,7 @@
 #include <shadow.h>
 
 extern bool valid_name(const char *name);
+extern bool is_uid(const char *str, uid_t *result_uid);
 extern bool is_shadow(const struct passwd *pw);
 extern bool is_blank_password(const struct passwd *pw, const struct spwd *sp);
 extern int expired_check(const struct spwd *sp, bool use_sp_min,
