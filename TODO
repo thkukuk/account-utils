@@ -2,3 +2,8 @@
 
 Bugs:
 - "passwd -e <account>" reports "password changed"
+
+Feature:
+- Allow "1account" as account name and fix the code to not assume it's
+  an UID. Make this a config option "Allow incompatible names" or so.
+- read_config: read debug_level from [global] and set max_log_level
