@@ -95,7 +95,7 @@ verify_ranges(uid_t uid, int nranges, const struct map_range *mappings,
   char *user;
   _cleanup_free_ char *pwerror = NULL;
   _cleanup_free_ char *val = NULL;
-  long start, count;
+  long long start, count;
   int r;
 
   r = pwaccess_get_account_name(uid, &user, &pwerror);
@@ -147,21 +147,21 @@ verify_ranges(uid_t uid, int nranges, const struct map_range *mappings,
 
   char *ep = NULL;
   errno = 0;
-  start = strtol(val, &ep, 10);
+  start = strtoll(val, &ep, 10);
   if (errno == ERANGE || start < -1 || start > UID_MAX || val == ep || *ep != '\0')
     {
       log_msg(LOG_ERR, "Cannot parse 'start' value (%s,%s,%s)", subid_file, user, val);
       return -EINVAL;
     }
   errno = 0;
-  count = strtol(cp, &ep, 10);
+  count = strtoll(cp, &ep, 10);
   if (errno == ERANGE || count < -1 || count >= (UID_MAX - start) || cp == ep || *ep != '\0')
     {
       log_msg(LOG_ERR, "Cannot parse 'count' value (%s,%s,%s)", subid_file, user, cp);
       return -EINVAL;
     }
 
-  log_msg(LOG_DEBUG, "%s: user=%s, start=%li, count=%li", subid_file, user, start, count);
+  log_msg(LOG_DEBUG, "%s: user=%s, start=%lli, count=%lli", subid_file, user, start, count);
 
   for (int i = 0; i < nranges; i++)
     {
