@@ -148,14 +148,14 @@ verify_ranges(uid_t uid, int nranges, const struct map_range *mappings,
   char *ep = NULL;
   errno = 0;
   start = strtoll(val, &ep, 10);
-  if (errno == ERANGE || start < -1 || start > UID_MAX || val == ep || *ep != '\0')
+  if (errno == ERANGE || start < 0 || start > UID_MAX || val == ep || *ep != '\0')
     {
       log_msg(LOG_ERR, "Cannot parse 'start' value (%s,%s,%s)", subid_file, user, val);
       return -EINVAL;
     }
   errno = 0;
   count = strtoll(cp, &ep, 10);
-  if (errno == ERANGE || count < -1 || count >= (UID_MAX - start) || cp == ep || *ep != '\0')
+  if (errno == ERANGE || count <= 0 || count >= (UID_MAX - start) || cp == ep || *ep != '\0')
     {
       log_msg(LOG_ERR, "Cannot parse 'count' value (%s,%s,%s)", subid_file, user, cp);
       return -EINVAL;

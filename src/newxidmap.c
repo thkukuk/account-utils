@@ -60,9 +60,9 @@ get_map_ranges(int ranges, char **argv, struct map_range **res)
 
       errno = 0;
       mappings[i].count = strtoul(argv[j+2], &ep, 10);
-      if (errno == ERANGE || argv[j] == ep || *ep != '\0')
+      if (errno == ERANGE || argv[j+2] == ep || *ep != '\0')
 	{
-	  fprintf(stderr, "Cannot parse count argument ('%s')\n", argv[j]);
+	  fprintf(stderr, "Cannot parse count argument ('%s')\n", argv[j+2]);
 	  return EINVAL;
 	}
     }
@@ -187,7 +187,7 @@ main(int argc, char **argv)
 
   errno = 0;
   arg_pid = strtol(pid_str, &ep, 10);
-  if (errno == ERANGE || arg_pid < -1 || pid_str == ep || *ep != '\0')
+  if (errno == ERANGE || arg_pid <= 0 || pid_str == ep || *ep != '\0')
     {
       fprintf(stderr, "Cannot parse PID argument ('%s')\n", pid_str);
       return EINVAL;
