@@ -61,23 +61,37 @@ open_pidfd(pid_t pid)
 }
 
 static bool
-verify_range(uid_t uid, int64_t start, int64_t count, const struct map_range mapping)
+verify_range(uid_t id, int64_t start, int64_t count, const struct map_range mapping)
 {
   if (mapping.count == 0)
-    return false;
+    {
+      log_msg(LOG_DEBUG, "verify_range: count == 0");
+      return false;
+    }
 
   /* Allow a process to map its own uid */
-  if ((mapping.count == 1) && (uid == mapping.lower))
-    return true;
+  if ((mapping.count == 1) && (id == mapping.lower))
+    {
+      log_msg(LOG_DEBUG, "self-mapping OK");
+      return true;
+    }
 
   /* first ID outside namespace must be between start and start+count */
   if (mapping.lower < start || mapping.lower >= start+count)
-    return false;
+    {
+      if (mapping.lower < start)
+	log_msg(LOG_ERR, "Error: lower (%lu) < start (%li)", mapping.lower, start);
+      if (mapping.lower >= start+count)
+	log_msg(LOG_ERR, "Error:lower (%lu) >= start+count (%li)", mapping.lower, start+count);
+      return false;
+    }
 
   /* last ID outside must be smaller than start+count.
      -1 because lower is already the first ID. */
   if ((mapping.lower+mapping.count-1) < (start+count))
     return true;
+  else
+    log_msg(LOG_ERR, "Error: mapping.lower+mapping.count-1 < start+count failed");
 
   return false;
 }
@@ -86,7 +100,7 @@ verify_range(uid_t uid, int64_t start, int64_t count, const struct map_range map
    0 : range is valid
    1 : range is invalid */
 static int
-verify_ranges(uid_t uid, int nranges, const struct map_range *mappings,
+verify_ranges(uid_t uid, gid_t gid, int nranges, const struct map_range *mappings,
 	      const char *map)
 {
   const char *subid_file = NULL;
@@ -97,6 +111,7 @@ verify_ranges(uid_t uid, int nranges, const struct map_range *mappings,
   _cleanup_free_ char *val = NULL;
   long long start, count;
   int r;
+  uid_t id; // can be uid or gid
 
   r = pwaccess_get_account_name(uid, &user, &pwerror);
   if (r < 0)
@@ -107,9 +122,15 @@ verify_ranges(uid_t uid, int nranges, const struct map_range *mappings,
     }
 
   if (streq(map, "uid_map"))
-    subid_file = "/etc/subuid";
+    {
+      subid_file = "/etc/subuid";
+      id = uid;
+    }
   else if (streq(map, "gid_map"))
-    subid_file = "/etc/subgid";
+    {
+      subid_file = "/etc/subgid";
+      id = gid;
+    }
   else
     {
       log_msg(LOG_ERR, "Unknown map name: '%s'", map);
@@ -165,7 +186,7 @@ verify_ranges(uid_t uid, int nranges, const struct map_range *mappings,
 
   for (int i = 0; i < nranges; i++)
     {
-      if (!verify_range(uid, start, count, mappings[i]))
+      if (!verify_range(id, start, count, mappings[i]))
 	return 1;
     }
 
@@ -384,9 +405,10 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "PID is owned by a different user"));
     }
 
-  r = verify_ranges(peer_uid, p.nranges, p.mappings, p.map);
+  r = verify_ranges(peer_uid, peer_gid, p.nranges, p.mappings, p.map);
   if (r < 0)
     {
+      log_msg(LOG_ERR, "Mapping ranges are not correct");
       return sd_varlink_errorbo(link, "org.openSUSE.newidmapd.InvalidParameter",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "Mapping ranges are not correct"));
