@@ -4,6 +4,13 @@ Copyright (C) 2025, 2026 Thorsten Kukuk <kukuk@suse.com>.
 
 Please enter bug reports at https://github.com/thkukuk/account-utils/issues
 
+Version 1.4.0
+* CI: add tests for newuidmap/newgidmap/newidmapd
+* Add pwaccessd.conf.5, newgidmap, newidmapd and newuidmap manual pages
+* pam_unix_ng/pwaccessd: make Minimal Password Age expire check configurable (sp_min)
+* chage: deprecate Minimal Password Age (sp_min)
+* passwd: deprecate Minimal Password Age (sp_min)
+
 Version 1.3.0
 * meson: try to autodetect distribution
 * CI: add a systemd-nspawn container test suite
