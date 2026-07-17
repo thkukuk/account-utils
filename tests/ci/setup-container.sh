@@ -7,14 +7,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BUILD_DIR="${BUILD_DIR:-$PROJECT_ROOT/build}"
 
+source "$SCRIPT_DIR/test-utils.sh"
+
 # CONTAINER_ROOT should be set by caller (run-tests.sh)
 # If not set, create a temporary directory (but this is not recommended)
 if [ -z "$CONTAINER_ROOT" ]; then
     log_error "CONTAINER_ROOT not set. This script should be called by run-tests.sh"
     exit 1
 fi
-
-source "$SCRIPT_DIR/test-utils.sh"
 
 # Detect system library directory (lib or lib64)
 case "$(uname -m)" in
@@ -158,6 +158,10 @@ EOF
 echo "00000000000000000000000000000001" > "$CONTAINER_ROOT/etc/machine-id"
 chmod 444 "$CONTAINER_ROOT/etc/machine-id"
 
+# Create empty subordinate UID/GID files required by newuidmap/newgidmap/newidmapd
+touch "$CONTAINER_ROOT/etc/subuid"
+touch "$CONTAINER_ROOT/etc/subgid"
+
 # Find and copy systemd and essential libraries
 log_info "Copying systemd and essential libraries"
 
@@ -273,9 +277,10 @@ if [ $found_libmount -eq 0 ]; then
     exit 1
 fi
 
+PATH=/usr/bin:/usr/sbin
 # Copy system binaries
 log_info "Copying system binaries"
-for cmd in bash sh ls cat echo mkdir rm chmod chown useradd userdel usermod chpasswd getent id stat grep cut head tail file varlinkctl; do
+for cmd in bash sh ls cat echo mkdir rm chmod chown useradd userdel usermod chpasswd getent id stat grep cut head tail file varlinkctl unshare sleep kill awk gawk; do
     if ! which "$cmd" >/dev/null 2>&1; then
         log_error "Essential system binary not found: $cmd"
         exit 1
@@ -371,6 +376,50 @@ for pam_mod in pam_deny.so pam_permit.so pam_rootok.so pam_warn.so; do
     cp -a "/usr/$LIBDIR/security/$pam_mod" "$CONTAINER_ROOT/usr/$LIBDIR/security/"
 done
 
+# Create systemd drop-in override for newidmapd to disable namespace restrictions in test container
+# These restrictions don't work inside systemd-nspawn which already provides namespace isolation
+mkdir -p "$CONTAINER_ROOT/etc/systemd/system/newidmapd.service.d"
+cat > "$CONTAINER_ROOT/etc/systemd/system/newidmapd.service.d/test-override.conf" << 'EOF'
+# Override for integration tests running in systemd-nspawn container
+# Disable all namespace and sandboxing restrictions that conflict with container isolation
+
+[Service]
+# Configure logging to work inside container
+StandardOutput=inherit
+StandardError=inherit
+
+# Disable filesystem namespace restrictions
+PrivateDevices=no
+PrivateTmp=no
+ProtectHome=no
+ProtectSystem=no
+ProtectProc=default
+ProcSubset=all
+ReadWritePaths=
+
+# Disable network namespace and IP filtering (PrivateNetwork=yes triggers mount namespace
+# setup for /run/credentials which fails inside systemd-nspawn)
+PrivateNetwork=no
+IPAddressDeny=
+RestrictAddressFamilies=
+
+# Disable other namespace restrictions
+RestrictNamespaces=no
+ProtectKernelTunables=no
+ProtectKernelLogs=no
+ProtectKernelModules=no
+ProtectControlGroups=no
+ProtectClock=no
+ProtectHostname=no
+
+# Keep these security features as they work in containers
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+EOF
+
 # Create systemd drop-in override for pwupdd@ to disable namespace restrictions in test container
 # These restrictions don't work inside systemd-nspawn which already provides namespace isolation
 mkdir -p "$CONTAINER_ROOT/etc/systemd/system/pwupdd@.service.d"
@@ -447,6 +496,14 @@ RestrictRealtime=yes
 RestrictSUIDSGID=yes
 EOF
 
+# Enable debugging
+mkdir -p "$CONTAINER_ROOT/etc/default"
+cat > "$CONTAINER_ROOT/etc/default/account-utils" << 'EOF'
+NEWIDMAPD_OPTS="-d"
+PWACCESSD_OPTS="-d"
+PWUPDD_OPTS="-d"
+EOF
+
 # Create PAM configuration
 log_info "Creating PAM configuration"
 
@@ -466,13 +523,6 @@ cat > "$CONTAINER_ROOT/etc/pam.d/common-session" << 'EOF'
 session    required   pam_unix_ng.so  debug
 EOF
 
-cat > "$CONTAINER_ROOT/etc/pam.d/system-auth" << 'EOF'
-auth       required   pam_unix_ng.so
-account    required   pam_unix_ng.so
-password   required   pam_unix_ng.so
-session    required   pam_unix_ng.so
-EOF
-
 cat > "$CONTAINER_ROOT/etc/pam.d/chpasswd" << 'EOF'
 auth       required   pam_permit.so
 account    required   pam_permit.so
@@ -482,7 +532,6 @@ EOF
 # for useradd
 cat > "$CONTAINER_ROOT/etc/pam.d/newusers" << 'EOF'
 #%PAM-1.0
-auth     sufficient     pam_rootok.so
 auth     required       pam_permit.so
 account  required       pam_permit.so
 password required       pam_permit.so
@@ -537,8 +586,8 @@ chmod 755 "$CONTAINER_ROOT/run/systemd/journal"
 cat > "$CONTAINER_ROOT/usr/lib/systemd/system/container-test.target" << 'EOF'
 [Unit]
 Description=Container Test Target
-Requires=basic.target pwaccessd.socket pwupdd.socket
-After=basic.target pwaccessd.socket pwupdd.socket
+Requires=basic.target pwaccessd.socket pwupdd.socket newidmapd.socket
+After=basic.target pwaccessd.socket pwupdd.socket newidmapd.socket
 
 [Install]
 Alias=default.target
@@ -559,8 +608,13 @@ if [ ! -f "$CONTAINER_ROOT/usr/lib/systemd/system/pwupdd.socket" ]; then
     log_error "pwupdd.socket not found - meson install may have failed"
     exit 1
 fi
+if [ ! -f "$CONTAINER_ROOT/usr/lib/systemd/system/newidmapd.socket" ]; then
+    log_error "newidmapd.socket not found - meson install may have failed"
+    exit 1
+fi
 ln -sf /usr/lib/systemd/system/pwaccessd.socket "$CONTAINER_ROOT/etc/systemd/system/sockets.target.wants/"
 ln -sf /usr/lib/systemd/system/pwupdd.socket "$CONTAINER_ROOT/etc/systemd/system/sockets.target.wants/"
+ln -sf /usr/lib/systemd/system/newidmapd.socket "$CONTAINER_ROOT/etc/systemd/system/sockets.target.wants/"
 
 # Enable journald sockets
 ln -sf /usr/lib/systemd/system/systemd-journald.socket "$CONTAINER_ROOT/etc/systemd/system/sockets.target.wants/"
@@ -569,6 +623,18 @@ ln -sf /usr/lib/systemd/system/systemd-journald-dev-log.socket "$CONTAINER_ROOT/
 # Enable journald service
 mkdir -p "$CONTAINER_ROOT/etc/systemd/system/sysinit.target.wants"
 ln -sf /usr/lib/systemd/system/systemd-journald.service "$CONTAINER_ROOT/etc/systemd/system/sysinit.target.wants/"
+
+# Ensure the container root and key directories are world-traversable.
+# mktemp -d creates the root with mode 700; any execve or path lookup by a non-root
+# UID (via nsenter --setuid) fails immediately at '/' with EACCES before reaching
+# /usr/bin/bash.  Expand permissions here rather than relying on umask.
+# /etc is safe to open (shadow stays 600 due to its own chmod above).
+chmod a+rX "$CONTAINER_ROOT"
+chmod a+rX "$CONTAINER_ROOT/etc"
+chmod a+rX "$CONTAINER_ROOT/home"
+chmod a+rX "$CONTAINER_ROOT/run"
+chmod 1777 "$CONTAINER_ROOT/tmp"
+chmod -R a+rX "$CONTAINER_ROOT/usr"
 
 log_info "Container setup complete: $CONTAINER_ROOT"
 log_info "You can start the container with: systemd-nspawn -D $CONTAINER_ROOT -b"

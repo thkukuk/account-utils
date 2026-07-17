@@ -31,6 +31,10 @@ log_test() {
     echo -e "${YELLOW}[TEST]${NC} $*"
 }
 
+log_debug() {
+    echo -e "[DEBUG] $*"
+}
+
 # Container management
 # These variables should be set by run-tests.sh
 # Default values only for backward compatibility (deprecated)
@@ -82,8 +86,13 @@ container_exec_user() {
         fi
     fi
 
-    # Use nsenter with su to run as specific user
-    nsenter -t "$leader_pid" -m -p -n -- su -s /bin/bash "$user" -c "$*"
+    # Resolve uid/gid inside the container's namespace, then use nsenter --setuid/--setgid
+    # to drop privileges without going through su (which fails via nsenter with EACCES
+    # when execve'ing the shell after credential switch).
+    local uid gid
+    uid=$(nsenter -t "$leader_pid" -m -p -n -- id -u "$user")
+    gid=$(nsenter -t "$leader_pid" -m -p -n -- id -g "$user")
+    nsenter -t "$leader_pid" -m -p -n --setuid="$uid" --setgid="$gid" -- "$@"
 }
 
 wait_for_service() {

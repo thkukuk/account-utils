@@ -303,6 +303,12 @@ if ! wait_for_socket "/run/account/pwupd-socket" 15; then
     exit 1
 fi
 
+if ! wait_for_socket "/run/account/newidmapd-socket" 15; then
+    log_error "newidmapd socket not ready"
+    container_exec journalctl -u newidmapd.socket --no-pager || true
+    exit 1
+fi
+
 log_info "Services are ready"
 
 # Run tests
