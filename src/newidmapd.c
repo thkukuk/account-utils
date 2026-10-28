@@ -545,8 +545,6 @@ run_varlink(bool socket_activation)
       return r;
     }
 
-  sd_varlink_server_set_userdata(varlink_server, event);
-
   r = sd_varlink_server_attach_event(varlink_server, event,
 				     SD_EVENT_PRIORITY_NORMAL);
   if (r < 0)

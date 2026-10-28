@@ -8,7 +8,6 @@
 
 #include "basics.h"
 #include "varlink-service-common.h"
-#include "context.h"
 
 static int log_level = LOG_WARNING;
 
@@ -155,14 +154,14 @@ vl_method_get_environment(sd_varlink *link, sd_json_variant *parameters,
 int
 vl_method_quit(sd_varlink *link, sd_json_variant *parameters,
 	       sd_varlink_method_flags_t _unused_(flags),
-	       void *userdata)
+	       void _unused_(*userdata))
 {
   static const sd_json_dispatch_field dispatch_table[] = {
     { "ExitCode", SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int, 0, 0 },
     {}
   };
   uid_t peer_uid;
-  struct context_t *ctx = userdata;
+  sd_event *loop;
   int exit_code = 0;
   int r;
 
@@ -192,7 +191,17 @@ vl_method_quit(sd_varlink *link, sd_json_variant *parameters,
   if (exit_code > 0)
     exit_code = -exit_code;
 
-  r = sd_event_exit(ctx->loop, exit_code);
+  /* Use the event loop of the connection, not userdata: not every daemon
+     stores a struct context_t there. */
+  loop = sd_varlink_get_event(link);
+  if (loop == NULL)
+    {
+      log_msg(LOG_ERR, "Quit request: connection has no event loop");
+      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+                                SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
+    }
+
+  r = sd_event_exit(loop, exit_code);
   if (r != 0)
     {
       log_msg(LOG_ERR, "Quit request: disabling event loop failed: %s",
