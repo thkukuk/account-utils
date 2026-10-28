@@ -691,6 +691,16 @@ valid_shell(const char *shell, uid_t uid, char **msg)
       if (uid)
         return false;
     }
+  else if (uid != 0 && !is_known_shell(shell))
+    {
+      /* Don't look at the file system for a path from an unprivileged
+	 caller. We run as root, so access() would reveal if files exist
+	 in directories the caller cannot access. The shell list is
+	 world-readable. */
+      if (asprintf(msg, "Error: '%s' is not listed as valid login shell.", shell) < 0)
+	*msg = NULL;
+      return false;
+    }
   else if (access(shell, F_OK) < 0)
     {
       if (asprintf(msg, "%s: '%s' does not exist.", uid?"Error":"Warning", shell) < 0)
