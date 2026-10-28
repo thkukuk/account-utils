@@ -47,7 +47,7 @@ get_map_ranges(int ranges, char **argv, struct map_range **res)
       if (errno == ERANGE || argv[j] == ep || *ep != '\0')
 	{
 	  fprintf(stderr, "Cannot parse upper argument ('%s')\n", argv[j]);
-	  return EINVAL;
+	  return -EINVAL;
 	}
 
       errno = 0;
@@ -55,7 +55,7 @@ get_map_ranges(int ranges, char **argv, struct map_range **res)
       if (errno == ERANGE || argv[j+1] == ep || *ep != '\0')
 	{
 	  fprintf(stderr, "Cannot parse lower argument ('%s')\n", argv[j+1]);
-	  return EINVAL;
+	  return -EINVAL;
 	}
 
       errno = 0;
@@ -63,7 +63,7 @@ get_map_ranges(int ranges, char **argv, struct map_range **res)
       if (errno == ERANGE || argv[j+2] == ep || *ep != '\0')
 	{
 	  fprintf(stderr, "Cannot parse count argument ('%s')\n", argv[j+2]);
-	  return EINVAL;
+	  return -EINVAL;
 	}
     }
   *res = TAKE_PTR(mappings);
