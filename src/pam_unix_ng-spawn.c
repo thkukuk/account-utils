@@ -58,7 +58,7 @@ start_pwaccessd(pam_handle_t *pamh, uint32_t ctrl)
     .finished = 0,
     .success = 0
     };
-  sd_bus_error error = SD_BUS_ERROR_NULL;
+  _cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
   _cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
   _cleanup_(sd_bus_slot_unrefp) sd_bus_slot *slot = NULL;
   _cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
