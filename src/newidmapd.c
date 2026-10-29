@@ -106,7 +106,7 @@ verify_ranges(uid_t uid, gid_t gid, int nranges, const struct map_range *mapping
   const char *subid_file = NULL;
   _cleanup_(econf_freeFilep) econf_file *econf = NULL;
   econf_err error;
-  char *user;
+  _cleanup_free_ char *user = NULL;
   _cleanup_free_ char *pwerror = NULL;
   _cleanup_free_ char *val = NULL;
   long long start, count;
