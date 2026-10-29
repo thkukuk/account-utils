@@ -45,6 +45,8 @@ get_logindefs_num(const char *key, long def)
   return val;
 }
 
+/* Returns a copy of the value of key, or of def if the key is not set or
+   login.defs cannot be read. def can be NULL, then NULL is returned. */
 char *
 get_logindefs_string(const char *key, const char *def)
 {
@@ -56,7 +58,7 @@ get_logindefs_string(const char *key, const char *def)
   if (error != ECONF_SUCCESS)
     {
       fprintf(stderr, "Cannot parse login.defs: %s\n", econf_errString(error));
-      return strdup(def);
+      return def ? strdup(def) : NULL;
     }
 
   error = econf_getStringValueDef(key_file, NULL, key, &val, def);
@@ -65,7 +67,7 @@ get_logindefs_string(const char *key, const char *def)
       if (error != ECONF_NOKEY)
 	fprintf(stderr, "Error reading '%s': %s\n", key,
 		econf_errString(error));
-      return strdup(def);
+      return def ? strdup(def) : NULL;
     }
 
   return val;
