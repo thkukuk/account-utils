@@ -22,29 +22,26 @@
 #define SELINUX_ENABLED 0
 #endif
 
-#define MAX_LOCK_RETRIES 300 /* How often should we try to lock password file */
-
 typedef int (*update_account_file_cb)(FILE*, FILE*, void*);
 
 static int
 lock_db(void)
 {
-  int retries = 0;
-  int r;
-
-  while((r = lckpwdf()) != 0 && retries < MAX_LOCK_RETRIES)
+  /* lckpwdf() blocks until it gets the lock or gives up after 15 seconds
+     itself. Don't retry: the client gives up long before, and we would
+     apply the change after it has been told that the request failed.
+     The timeout uses SIGALRM, so a multi-threaded program has to block it
+     in all threads but the calling one, else it can wait forever. */
+  errno = 0; /* lckpwdf() does not always set errno */
+  if (lckpwdf() != 0)
     {
-      usleep(10000); /* 1/100 second */
-      ++retries;
-    }
-
-  if (r < 0)
-    {
-      if (retries == MAX_LOCK_RETRIES)
+      /* EINTR: interrupted by the timeout signal, 0: already locked by
+	 this process. */
+      if (errno == 0 || errno == EINTR)
 	return -ENOLCK;
-      else
-	return -errno;
+      return -errno;
     }
+
   return 0;
 }
 

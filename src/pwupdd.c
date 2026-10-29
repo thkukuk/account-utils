@@ -13,6 +13,7 @@
 #include <pwd.h>
 #include <shadow.h>
 #include <pthread.h>
+#include <signal.h>
 #include <systemd/sd-daemon.h>
 #include <systemd/sd-varlink.h>
 #include <systemd/sd-journal.h>
@@ -1418,7 +1419,23 @@ main (int argc, char **argv)
 
   log_msg (LOG_INFO, "Starting pwupdd (%s) %s...", PACKAGE, VERSION);
 
-  int r = run_varlink ();
+  /* The update functions use lckpwdf(), which uses SIGALRM for its timeout.
+     A process directed signal is delivered to any thread which does not
+     block it, e.g. to the main thread while a PAM thread waits for the
+     lock, which then waits forever. Block it here, the threads started
+     later inherit the mask, and lckpwdf() unblocks it only for the thread
+     calling it. */
+  sigset_t alarm_set;
+  sigemptyset(&alarm_set);
+  sigaddset(&alarm_set, SIGALRM);
+  int r = pthread_sigmask(SIG_BLOCK, &alarm_set, NULL);
+  if (r != 0)
+    {
+      log_msg(LOG_ERR, "Failed to block SIGALRM: %s", strerror(r));
+      return 1;
+    }
+
+  r = run_varlink ();
   if (r < 0)
     return -r;
 
