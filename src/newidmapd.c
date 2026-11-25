@@ -2,10 +2,10 @@
 
 #include "config.h"
 
+#include <ctype.h>
 #include <pwd.h>
 #include <getopt.h>
 #include <syslog.h>
-#include <libeconf.h>
 #include <systemd/sd-daemon.h>
 #include <systemd/sd-varlink.h>
 
@@ -60,14 +60,162 @@ open_pidfd(pid_t pid)
   return proc_dir_fd;
 }
 
+/* One "owner:start:count" line from /etc/subuid or /etc/subgid that
+   applies to the user we are checking. */
+struct subid_range {
+  int64_t start;
+  int64_t count;
+};
+
+static void
+subid_ranges_freep(struct subid_range **ranges)
+{
+  *ranges = mfree(*ranges);
+}
+
+/* Read all lines of subid_file whose owner field matches either
+   "user" (by name) or "uid" (by its decimal string, as allowed by
+   subuid(5)/subgid(5)) and collect their (start,count) ranges. */
+static int
+load_subid_ranges(const char *subid_file, const char *user, uid_t uid,
+		   struct subid_range **rangesp, size_t *nrangesp)
+{
+  _cleanup_fclose_ FILE *fp = NULL;
+  _cleanup_free_ char *line = NULL;
+  size_t linesize = 0;
+  ssize_t len;
+  _cleanup_(subid_ranges_freep) struct subid_range *ranges = NULL;
+  size_t nranges = 0;
+  char uidstr[32];
+
+  snprintf(uidstr, sizeof(uidstr), "%u", uid);
+
+  fp = fopen(subid_file, "r");
+  if (fp == NULL)
+    {
+      log_msg(LOG_ERR, "Cannot open %s: %m", subid_file);
+      return (errno == ENOENT) ? -ENOENT : -EIO;
+    }
+
+  while ((len = getline(&line, &linesize, fp)) != -1)
+    {
+      char *comment = strchr(line, '#');
+      if (comment)
+	*comment = '\0';
+
+      char *owner = line;
+      while (isspace((unsigned char)*owner))
+	owner++;
+
+      char *end = owner + strlen(owner);
+      while (end > owner && isspace((unsigned char)end[-1]))
+	*--end = '\0';
+
+      if (*owner == '\0')
+	continue;
+
+      char *start_str = strchr(owner, ':');
+      if (start_str == NULL)
+	{
+	  log_msg(LOG_ERR, "Invalid line in %s: %s", subid_file, owner);
+	  continue;
+	}
+      *start_str++ = '\0';
+
+      char *count_str = strchr(start_str, ':');
+      if (count_str == NULL)
+	{
+	  log_msg(LOG_ERR, "Invalid line in %s for user %s: %s", subid_file, owner, start_str);
+	  continue;
+	}
+      *count_str++ = '\0';
+
+      if (!streq(owner, user) && !streq(owner, uidstr))
+	continue;
+
+      char *ep = NULL;
+      long long start, count;
+
+      errno = 0;
+      start = strtoll(start_str, &ep, 10);
+      if (errno == ERANGE || start < 0 || start > UID_MAX || start_str == ep || *ep != '\0')
+	{
+	  log_msg(LOG_ERR, "Cannot parse 'start' value (%s,%s,%s)", subid_file, owner, start_str);
+	  continue;
+	}
+      errno = 0;
+      count = strtoll(count_str, &ep, 10);
+      if (errno == ERANGE || count <= 0 || count >= (UID_MAX - start) || count_str == ep || *ep != '\0')
+	{
+	  log_msg(LOG_ERR, "Cannot parse 'count' value (%s,%s,%s)", subid_file, owner, count_str);
+	  continue;
+	}
+
+      struct subid_range *tmp = reallocarray(ranges, nranges + 1, sizeof(*ranges));
+      if (tmp == NULL)
+	{
+	  log_msg(LOG_ERR, "Out of memory!");
+	  return -ENOMEM;
+	}
+      ranges = tmp;
+      ranges[nranges].start = start;
+      ranges[nranges].count = count;
+      nranges++;
+
+      log_msg(LOG_DEBUG, "%s: owner=%s, start=%lli, count=%lli", subid_file, owner, start, count);
+    }
+
+  *rangesp = TAKE_PTR(ranges);
+  *nrangesp = nranges;
+  return 0;
+}
+
+/* Check whether [start, start+count) is fully covered by the collected
+   subid ranges, stitching together consecutive ranges if necessary -
+   mirrors shadow's have_range()/find_range(). */
 static bool
-verify_range(uid_t id, int64_t start, int64_t count, const struct map_range mapping)
+have_subid_range(const struct subid_range *ranges, size_t nranges,
+		  int64_t start, int64_t count)
+{
+  int64_t end = start + count - 1;
+
+  while (true)
+    {
+      bool found = false;
+
+      for (size_t i = 0; i < nranges; i++)
+	{
+	  int64_t first = ranges[i].start;
+	  int64_t last = first + ranges[i].count - 1;
+
+	  if (start < first || start > last)
+	    continue;
+
+	  found = true;
+	  if (last >= end)
+	    return true;
+
+	  start = last + 1;
+	  break;
+	}
+
+      if (!found)
+	return false;
+    }
+}
+
+static bool
+verify_range(uid_t id, const struct subid_range *ranges, size_t nranges,
+	     const struct map_range mapping)
 {
   if (mapping.count == 0)
     {
       log_msg(LOG_DEBUG, "verify_range: count == 0");
       return false;
     }
+
+  if (have_subid_range(ranges, nranges, mapping.lower, mapping.count))
+    return true;
 
   /* Allow a process to map its own uid */
   if ((mapping.count == 1) && (id == mapping.lower))
@@ -76,22 +224,8 @@ verify_range(uid_t id, int64_t start, int64_t count, const struct map_range mapp
       return true;
     }
 
-  /* first ID outside namespace must be between start and start+count */
-  if (mapping.lower < start || mapping.lower >= start+count)
-    {
-      if (mapping.lower < start)
-	log_msg(LOG_ERR, "Error: lower (%lu) < start (%li)", mapping.lower, start);
-      if (mapping.lower >= start+count)
-	log_msg(LOG_ERR, "Error:lower (%lu) >= start+count (%li)", mapping.lower, start+count);
-      return false;
-    }
-
-  /* last ID outside must be smaller than start+count.
-     -1 because lower is already the first ID. */
-  if ((mapping.lower+mapping.count-1) < (start+count))
-    return true;
-  else
-    log_msg(LOG_ERR, "Error: mapping.lower+mapping.count-1 < start+count failed");
+  log_msg(LOG_ERR, "Error: mapping [%lu-%lu) not covered by any allowed range",
+	  mapping.lower, mapping.lower+mapping.count);
 
   return false;
 }
@@ -104,12 +238,10 @@ verify_ranges(uid_t uid, gid_t gid, int nranges, const struct map_range *mapping
 	      const char *map)
 {
   const char *subid_file = NULL;
-  _cleanup_(econf_freeFilep) econf_file *econf = NULL;
-  econf_err error;
   _cleanup_free_ char *user = NULL;
   _cleanup_free_ char *pwerror = NULL;
-  _cleanup_free_ char *val = NULL;
-  long long start, count;
+  _cleanup_(subid_ranges_freep) struct subid_range *ranges = NULL;
+  size_t n_subid_ranges = 0;
   int r;
   uid_t id; // can be uid or gid
 
@@ -137,56 +269,16 @@ verify_ranges(uid_t uid, gid_t gid, int nranges, const struct map_range *mapping
       return -EINVAL;
     }
 
-  error = econf_readFile(&econf, subid_file, ":", "#");
-  if (error != ECONF_SUCCESS)
-    {
-      log_msg(LOG_ERR, "Cannot open %s: %s", subid_file, econf_errString(error));
-      if (error == ECONF_NOFILE)
-	return -ENOENT;
-      else
-	return -EIO;
-    }
+  r = load_subid_ranges(subid_file, user, uid, &ranges, &n_subid_ranges);
+  if (r < 0)
+    return r;
 
-  error = econf_getStringValue(econf, NULL, user, &val);
-  if (error != ECONF_SUCCESS)
-    {
-      if (error == ECONF_NOKEY)
-	log_msg(LOG_ERR, "Mapping range for user '%s' not found in %s", user, subid_file);
-      else
-	log_msg(LOG_ERR, "Error retrieving key '%s': %s", user, econf_errString(error));
-      return -ENODATA;
-    }
-
-  char *cp = strchr(val, ':');
-  if (cp == NULL)
-    {
-      log_msg(LOG_ERR, "Invalid format for user %s in %s: %s", user, subid_file, val);
-      return -EINVAL;
-    }
-
-  *cp++='\0';
-
-  char *ep = NULL;
-  errno = 0;
-  start = strtoll(val, &ep, 10);
-  if (errno == ERANGE || start < 0 || start > UID_MAX || val == ep || *ep != '\0')
-    {
-      log_msg(LOG_ERR, "Cannot parse 'start' value (%s,%s,%s)", subid_file, user, val);
-      return -EINVAL;
-    }
-  errno = 0;
-  count = strtoll(cp, &ep, 10);
-  if (errno == ERANGE || count <= 0 || count >= (UID_MAX - start) || cp == ep || *ep != '\0')
-    {
-      log_msg(LOG_ERR, "Cannot parse 'count' value (%s,%s,%s)", subid_file, user, cp);
-      return -EINVAL;
-    }
-
-  log_msg(LOG_DEBUG, "%s: user=%s, start=%lli, count=%lli", subid_file, user, start, count);
+  if (n_subid_ranges == 0)
+    log_msg(LOG_DEBUG, "No entries for user '%s' found in %s", user, subid_file);
 
   for (int i = 0; i < nranges; i++)
     {
-      if (!verify_range(id, start, count, mappings[i]))
+      if (!verify_range(id, ranges, n_subid_ranges, mappings[i]))
 	return 1;
     }
 
