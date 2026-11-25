@@ -355,6 +355,160 @@ test_newuidmap_out_of_range() {
 }
 
 # ---------------------------------------------------------------------------
+# Regression tests for #43: newidmapd ignoring additional /etc/subuid ranges
+# of a user, and entries keyed by UID instead of username.
+# ---------------------------------------------------------------------------
+
+test_newuidmap_subuid_multiple_ranges() {
+    log_test "Testing newuidmap stitches two contiguous /etc/subuid lines for the same user"
+
+    local testuser="newidmap_multirange"
+    local range1_start=500000
+    local range1_count=65536
+    local range2_start=$((range1_start + range1_count))
+    local range2_count=65536
+    create_test_user "$testuser" "TestPass123"
+
+    # Two separate lines for the same user; contiguous, so a request spanning
+    # both must be accepted by stitching them together.
+    container_exec bash -c "echo '${testuser}:${range1_start}:${range1_count}' >> /etc/subuid"
+    container_exec bash -c "echo '${testuser}:${range2_start}:${range2_count}' >> /etc/subuid"
+
+    local pid_file="/tmp/newidmapd_test_multirange_pid"
+    local pid
+    pid=$(start_userns_process "$testuser" "$pid_file")
+
+    local combined_count=$((range1_count + range2_count))
+    local rc=0
+    container_exec_user "$testuser" /usr/bin/bash -c \
+        "newuidmap $pid 0 $range1_start $combined_count" || rc=$?
+    assert_success $rc "newuidmap accepts a range spanning two contiguous /etc/subuid lines for the same user"
+
+    local uid_map
+    uid_map=$(container_exec cat "/proc/$pid/uid_map")
+    assert_contains "$uid_map" "$range1_start" "uid_map contains stitched range start $range1_start"
+
+    container_exec /usr/bin/kill "$pid" 2>/dev/null || true
+    container_exec rm -f "$pid_file"
+    container_exec bash -c \
+        "grep -v '^${testuser}:' /etc/subuid > /etc/subuid.new && \
+         cp /etc/subuid.new /etc/subuid && rm /etc/subuid.new"
+    delete_test_user "$testuser"
+}
+
+test_newuidmap_subuid_noncontiguous_rejected() {
+    log_test "Testing newuidmap rejects a range spanning a gap between two /etc/subuid lines"
+
+    local testuser="newidmap_gaprange"
+    local range1_start=600000
+    local range1_count=65536
+    local range2_start=700000
+    local range2_count=65536
+    create_test_user "$testuser" "TestPass123"
+
+    container_exec bash -c "echo '${testuser}:${range1_start}:${range1_count}' >> /etc/subuid"
+    container_exec bash -c "echo '${testuser}:${range2_start}:${range2_count}' >> /etc/subuid"
+
+    local pid_file="/tmp/newidmapd_test_gaprange_pid"
+    local pid
+    pid=$(start_userns_process "$testuser" "$pid_file")
+
+    # The first of the two ranges alone must still be accepted on its own...
+    local rc=0
+    container_exec_user "$testuser" /usr/bin/bash -c \
+        "newuidmap $pid 0 $range1_start $range1_count" || rc=$?
+    assert_success $rc "newuidmap accepts the first of two /etc/subuid lines for the user"
+
+    container_exec /usr/bin/kill "$pid" 2>/dev/null || true
+    container_exec rm -f "$pid_file"
+    pid=$(start_userns_process "$testuser" "$pid_file")
+
+    # ...but a request spanning the gap between the two lines must be rejected.
+    rc=0
+    local combined_count=$((range2_start + range2_count - range1_start))
+    container_exec_user "$testuser" /usr/bin/bash -c \
+        "newuidmap $pid 0 $range1_start $combined_count" >/dev/null 2>&1 || rc=$?
+    assert_failure $rc "newuidmap rejects a range spanning a gap between two /etc/subuid lines"
+
+    container_exec /usr/bin/kill "$pid" 2>/dev/null || true
+    container_exec rm -f "$pid_file"
+    container_exec bash -c \
+        "grep -v '^${testuser}:' /etc/subuid > /etc/subuid.new && \
+         cp /etc/subuid.new /etc/subuid && rm /etc/subuid.new"
+    delete_test_user "$testuser"
+}
+
+test_newuidmap_subuid_keyed_by_uid() {
+    log_test "Testing newuidmap honors an /etc/subuid entry keyed by numeric UID"
+
+    local testuser="newidmap_uidkey"
+    local sub_start=800000
+    local sub_count=65536
+    create_test_user "$testuser" "TestPass123"
+
+    local uid
+    uid=$(container_exec id -u "$testuser")
+
+    # Key the entry by the numeric UID instead of the username, as allowed by subuid(5).
+    container_exec bash -c "echo '${uid}:${sub_start}:${sub_count}' >> /etc/subuid"
+
+    local pid_file="/tmp/newidmapd_test_uidkey_pid"
+    local pid
+    pid=$(start_userns_process "$testuser" "$pid_file")
+
+    local rc=0
+    container_exec_user "$testuser" /usr/bin/bash -c \
+        "newuidmap $pid 0 $sub_start $sub_count" || rc=$?
+    assert_success $rc "newuidmap accepts a /etc/subuid range keyed by numeric UID"
+
+    local uid_map
+    uid_map=$(container_exec cat "/proc/$pid/uid_map")
+    assert_contains "$uid_map" "$sub_start" "uid_map contains UID-keyed range start $sub_start"
+
+    container_exec /usr/bin/kill "$pid" 2>/dev/null || true
+    container_exec rm -f "$pid_file"
+    container_exec bash -c \
+        "grep -v '^${uid}:' /etc/subuid > /etc/subuid.new && \
+         cp /etc/subuid.new /etc/subuid && rm /etc/subuid.new"
+    delete_test_user "$testuser"
+}
+
+test_newgidmap_subgid_keyed_by_uid() {
+    log_test "Testing newgidmap honors an /etc/subgid entry keyed by numeric UID"
+
+    local testuser="newidmap_gidkey"
+    local sub_start=900000
+    local sub_count=65536
+    create_test_user "$testuser" "TestPass123"
+
+    local uid
+    uid=$(container_exec id -u "$testuser")
+
+    # /etc/subgid is also keyed by the owning user's UID/name, not by gid.
+    container_exec bash -c "echo '${uid}:${sub_start}:${sub_count}' >> /etc/subgid"
+
+    local pid_file="/tmp/newidmapd_test_gidkey_pid"
+    local pid
+    pid=$(start_userns_process "$testuser" "$pid_file")
+
+    local rc=0
+    container_exec_user "$testuser" /usr/bin/bash -c \
+        "newgidmap $pid 0 $sub_start $sub_count" || rc=$?
+    assert_success $rc "newgidmap accepts a /etc/subgid range keyed by numeric UID"
+
+    local gid_map
+    gid_map=$(container_exec cat "/proc/$pid/gid_map")
+    assert_contains "$gid_map" "$sub_start" "gid_map contains UID-keyed range start $sub_start"
+
+    container_exec /usr/bin/kill "$pid" 2>/dev/null || true
+    container_exec rm -f "$pid_file"
+    container_exec bash -c \
+        "grep -v '^${uid}:' /etc/subgid > /etc/subgid.new && \
+         cp /etc/subgid.new /etc/subgid && rm /etc/subgid.new"
+    delete_test_user "$testuser"
+}
+
+# ---------------------------------------------------------------------------
 # CLI argument validation (no socket connection needed)
 # ---------------------------------------------------------------------------
 
@@ -430,5 +584,9 @@ run_test test_newuidmap_subuid_range
 run_test test_newgidmap_subgid_range
 run_test test_newuidmap_wrong_owner
 run_test test_newuidmap_out_of_range
+run_test test_newuidmap_subuid_multiple_ranges
+run_test test_newuidmap_subuid_noncontiguous_rejected
+run_test test_newuidmap_subuid_keyed_by_uid
+run_test test_newgidmap_subgid_keyed_by_uid
 
 print_summary
