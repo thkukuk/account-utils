@@ -238,8 +238,7 @@ write_mapping(int proc_dir_fd, int nranges, const struct map_range *mappings,
 	      map, strerror(-r));
       return r;
     }
-  r = close(fd);
-  fd = -EBADF; /* closed, even on error. Don't let the cleanup close it again. */
+  r = close(TAKE_FD(fd));
   if (r != 0 && errno != EINTR)
     {
       r = -errno;
