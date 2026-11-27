@@ -4,6 +4,9 @@ Copyright (C) 2025, 2026 Thorsten Kukuk <kukuk@suse.com>.
 
 Please enter bug reports at https://github.com/thkukuk/account-utils/issues
 
+Version 1.5.0
+* Many bug fixes
+
 Version 1.4.0
 * CI: add tests for newuidmap/newgidmap/newidmapd
 * Add pwaccessd.conf.5, newgidmap, newidmapd and newuidmap manual pages
